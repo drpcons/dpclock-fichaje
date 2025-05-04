@@ -6,7 +6,7 @@ import 'package:http/http.dart' as http;
 import '../services/jornada_service.dart';
 import '../services/logger_service.dart';
 import 'package:flutter/foundation.dart';
-import 'dart:html' as html;
+import '../utils/platform_utils.dart';
 
 class FicharScreen extends StatefulWidget {
   const FicharScreen({super.key});
@@ -49,7 +49,7 @@ class _FicharScreenState extends State<FicharScreen> {
         headers: {
           'User-Agent': 'Fichaje App/1.0',
           'Accept': 'application/json',
-          'Origin': kIsWeb ? html.window.location.origin ?? 'https://fichaje-app.web.app' : 'app://fichaje',
+          'Origin': getOrigin(),
         },
       ).timeout(
         timeout,

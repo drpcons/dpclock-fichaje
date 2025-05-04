@@ -29,6 +29,10 @@ class _JornadasScreenState extends State<JornadasScreen> {
   String _filterEmail = '';
   String _filterUbicacion = '';
 
+  // Nueva variable para manejar registros seleccionados
+  final Set<String> _selectedRegistros = {};
+  bool _selectAll = false;
+
   Color _getTipoColor(String tipo) {
     switch (tipo) {
       case 'ENTRADA':
@@ -664,8 +668,91 @@ class _JornadasScreenState extends State<JornadasScreen> {
     );
   }
 
+  Future<void> _eliminarRegistrosSeleccionados() async {
+    if (_selectedRegistros.isEmpty) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Confirmar eliminación'),
+          content: Text('¿Está seguro que desea eliminar ${_selectedRegistros.length} registros seleccionados?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Eliminar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true) {
+      try {
+        // Mostrar indicador de progreso
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (BuildContext context) {
+            return const AlertDialog(
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Eliminando registros...'),
+                ],
+              ),
+            );
+          },
+        );
+
+        // Eliminar registros
+        for (var registroId in _selectedRegistros) {
+          await JornadaService().deleteRegistro(registroId);
+        }
+
+        // Limpiar selección
+        setState(() {
+          _selectedRegistros.clear();
+          _selectAll = false;
+        });
+
+        // Cerrar diálogo de progreso
+        if (context.mounted) {
+          Navigator.of(context).pop();
+          // Mostrar mensaje de éxito
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Registros eliminados correctamente'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        // Cerrar diálogo de progreso si hay error
+        if (context.mounted) {
+          Navigator.of(context).pop();
+          // Mostrar mensaje de error
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error al eliminar registros: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
+
   Widget _buildAdminView(List<RegistroJornada> registros) {
     final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
+    final currentUserEmail = _auth.currentUser?.email;
+    final isAdmin = currentUserEmail == 'd.romeral.perulero@gmail.com';
     
     // Filtrar registros
     var filteredRegistros = registros.where((registro) {
@@ -705,27 +792,61 @@ class _JornadasScreenState extends State<JornadasScreen> {
 
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              FilledButton.icon(
-                onPressed: filteredRegistros.isEmpty 
-                  ? null 
-                  : () => _exportToExcel(filteredRegistros),
-                icon: const Icon(Icons.file_download),
-                label: const Text('Exportar Excel'),
-              ),
-            ],
+        if (isAdmin) ...[
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Checkbox(
+                      value: _selectAll,
+                      onChanged: (bool? value) {
+                        setState(() {
+                          _selectAll = value ?? false;
+                          if (_selectAll) {
+                            _selectedRegistros.addAll(filteredRegistros.map((r) => r.id));
+                          } else {
+                            _selectedRegistros.clear();
+                          }
+                        });
+                      },
+                    ),
+                    const Text('Seleccionar todo'),
+                    const SizedBox(width: 16),
+                    if (_selectedRegistros.isNotEmpty)
+                      FilledButton.icon(
+                        onPressed: _eliminarRegistrosSeleccionados,
+                        icon: const Icon(Icons.delete),
+                        label: Text('Eliminar (${_selectedRegistros.length})'),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Colors.red,
+                        ),
+                      ),
+                  ],
+                ),
+                FilledButton.icon(
+                  onPressed: filteredRegistros.isEmpty 
+                    ? null 
+                    : () => _exportToExcel(filteredRegistros),
+                  icon: const Icon(Icons.file_download),
+                  label: const Text('Exportar Excel'),
+                ),
+              ],
+            ),
           ),
-        ),
+        ],
         Expanded(
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: SingleChildScrollView(
               child: DataTable(
                 columns: [
+                  if (isAdmin)
+                    const DataColumn(
+                      label: SizedBox.shrink(),
+                    ),
                   DataColumn(
                     label: _buildColumnHeader('Tipo', 'Filtrar por tipo', 
                       () => _showFilterOptions(
@@ -777,7 +898,38 @@ class _JornadasScreenState extends State<JornadasScreen> {
                 ],
                 rows: filteredRegistros.map((registro) {
                   return DataRow(
+                    selected: isAdmin && _selectedRegistros.contains(registro.id),
+                    onSelectChanged: isAdmin ? (bool? selected) {
+                      if (selected != null) {
+                        setState(() {
+                          if (selected) {
+                            _selectedRegistros.add(registro.id);
+                          } else {
+                            _selectedRegistros.remove(registro.id);
+                          }
+                          _selectAll = _selectedRegistros.length == filteredRegistros.length;
+                        });
+                      }
+                    } : null,
                     cells: [
+                      if (isAdmin)
+                        DataCell(
+                          Checkbox(
+                            value: _selectedRegistros.contains(registro.id),
+                            onChanged: (bool? selected) {
+                              if (selected != null) {
+                                setState(() {
+                                  if (selected) {
+                                    _selectedRegistros.add(registro.id);
+                                  } else {
+                                    _selectedRegistros.remove(registro.id);
+                                  }
+                                  _selectAll = _selectedRegistros.length == filteredRegistros.length;
+                                });
+                              }
+                            },
+                          ),
+                        ),
                       DataCell(
                         Row(
                           mainAxisSize: MainAxisSize.min,
@@ -795,23 +947,23 @@ class _JornadasScreenState extends State<JornadasScreen> {
                             Text(registro.tipo),
                           ],
                         ),
-                        onTap: () => _confirmarEliminarRegistro(registro),
+                        onTap: isAdmin ? () => _confirmarEliminarRegistro(registro) : null,
                       ),
                       DataCell(
                         Text(dateFormat.format(registro.fecha)),
-                        onTap: () => _confirmarEliminarRegistro(registro),
+                        onTap: isAdmin ? () => _confirmarEliminarRegistro(registro) : null,
                       ),
                       DataCell(
                         Text(registro.userName),
-                        onTap: () => _confirmarEliminarRegistro(registro),
+                        onTap: isAdmin ? () => _confirmarEliminarRegistro(registro) : null,
                       ),
                       DataCell(
                         Text(registro.userEmail),
-                        onTap: () => _confirmarEliminarRegistro(registro),
+                        onTap: isAdmin ? () => _confirmarEliminarRegistro(registro) : null,
                       ),
                       DataCell(
                         _buildLocationInfo(registro),
-                        onTap: () => _confirmarEliminarRegistro(registro),
+                        onTap: isAdmin ? () => _confirmarEliminarRegistro(registro) : null,
                       ),
                     ],
                   );

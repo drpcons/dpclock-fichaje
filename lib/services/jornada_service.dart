@@ -8,7 +8,7 @@ import 'dart:convert';
 import '../models/registro_jornada.dart';
 import 'auth_service.dart';
 import 'logger_service.dart';
-import 'dart:html' as html;
+import '../utils/platform_utils.dart';
 import 'dart:async';
 
 class JornadaService {
@@ -39,7 +39,7 @@ class JornadaService {
         headers: {
           'User-Agent': 'Fichaje App/1.0',
           'Accept': 'application/json',
-          'Origin': kIsWeb ? html.window.location.origin ?? 'https://fichaje-app.web.app' : 'app://fichaje'
+          'Origin': getOrigin()
         },
       ).timeout(
         const Duration(seconds: 10),
