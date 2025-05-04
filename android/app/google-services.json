@@ -1,0 +1,68 @@
+{
+  "project_info": {
+    "project_number": "816861692730",
+    "firebase_url": "https://fichaje-de-personal-default-rtdb.europe-west1.firebasedatabase.app",
+    "project_id": "fichaje-de-personal",
+    "storage_bucket": "fichaje-de-personal.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:816861692730:android:da14eb484ecaf02f1d4603",
+        "android_client_info": {
+          "package_name": "com.example.fdp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBjtDNcStVKgxaOD5lEXU2n_jbYNcPrA0s"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:816861692730:android:68984e74c0333ef11d4603",
+        "android_client_info": {
+          "package_name": "com.example.fichaje"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBjtDNcStVKgxaOD5lEXU2n_jbYNcPrA0s"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:816861692730:android:745f7b3706b222521d4603",
+        "android_client_info": {
+          "package_name": "com.fichaje.fdp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBjtDNcStVKgxaOD5lEXU2n_jbYNcPrA0s"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
