@@ -44,16 +44,15 @@
     // Función para obtener la dirección desde OpenStreetMap
     async function getAddressFromCoordinates(latitude, longitude) {
       try {
-        console.log('Obteniendo dirección para:', { latitude, longitude });
+        console.log('Iniciando obtención de dirección para:', { latitude, longitude });
         const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&accept-language=es&zoom=18`;
         
         console.log('Realizando petición a:', url);
         
         const response = await fetch(url, {
           headers: {
-            'User-Agent': 'Fichaje App (https://github.com/drpcons/drpcons-fichaje)',
-            'Accept': 'application/json',
-            'Referer': 'https://drpcons.github.io/drpcons-fichaje/'
+            'User-Agent': 'Fichaje App/1.0',
+            'Accept': 'application/json'
           },
           mode: 'cors'
         });
@@ -61,33 +60,53 @@
         console.log('Estado de la respuesta:', response.status);
         
         if (!response.ok) {
+          console.error('Error en la respuesta:', response.status, response.statusText);
           throw new Error(`Error HTTP: ${response.status}`);
         }
 
         const data = await response.json();
         console.log('Respuesta completa de OpenStreetMap:', data);
         
-        if (data.display_name) {
-          console.log('Dirección obtenida:', data.display_name);
-          return data.display_name;
-        } else if (data.address) {
-          // Construir una dirección formateada desde los componentes individuales
+        // Intentar construir la dirección desde los componentes individuales primero
+        if (data.address) {
+          console.log('Componentes de dirección encontrados:', data.address);
           const components = [];
-          if (data.address.road) components.push(data.address.road);
-          if (data.address.house_number) components.push(data.address.house_number);
-          if (data.address.suburb) components.push(data.address.suburb);
-          if (data.address.city || data.address.town) components.push(data.address.city || data.address.town);
-          if (data.address.postcode) components.push(data.address.postcode);
           
-          const formattedAddress = components.join(', ');
-          console.log('Dirección formateada:', formattedAddress);
-          return formattedAddress;
-        } else {
-          throw new Error('No se encontró información de dirección');
+          const addressParts = {
+            road: 'Calle',
+            house_number: 'Número',
+            suburb: 'Barrio',
+            city: 'Ciudad',
+            town: 'Pueblo',
+            county: 'Municipio',
+            state: 'Provincia',
+            postcode: 'CP'
+          };
+
+          for (const [key, label] of Object.entries(addressParts)) {
+            if (data.address[key]) {
+              components.push(`${data.address[key]}`);
+            }
+          }
+          
+          if (components.length > 0) {
+            const formattedAddress = components.join(', ');
+            console.log('Dirección formateada desde componentes:', formattedAddress);
+            return formattedAddress;
+          }
         }
+        
+        // Si no se pudo construir desde componentes, usar display_name
+        if (data.display_name) {
+          console.log('Usando display_name como dirección:', data.display_name);
+          return data.display_name;
+        }
+
+        console.warn('No se encontró información de dirección en la respuesta');
+        return `Coordenadas: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
       } catch (error) {
         console.error('Error al obtener dirección:', error);
-        return `Lat: ${latitude.toStringAsFixed(6)}, Long: ${longitude.toStringAsFixed(6)}`;
+        return `Coordenadas: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
       }
     }
 

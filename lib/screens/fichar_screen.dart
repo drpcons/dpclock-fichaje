@@ -32,9 +32,8 @@ class _FicharScreenState extends State<FicharScreen> {
       final response = await http.get(
         Uri.parse(url),
         headers: {
-          'User-Agent': 'Fichaje App (https://github.com/drpcons/drpcons-fichaje)',
-          'Accept': 'application/json',
-          'Referer': 'https://drpcons.github.io/drpcons-fichaje/'
+          'User-Agent': 'Fichaje App/1.0',
+          'Accept': 'application/json'
         },
       ).timeout(
         const Duration(seconds: 10),
@@ -49,34 +48,44 @@ class _FicharScreenState extends State<FicharScreen> {
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
+        LoggerService.info('Datos decodificados: $data');
         
-        // Intentar obtener display_name primero
-        final displayName = data['display_name'] as String?;
-        if (displayName != null && displayName.isNotEmpty) {
-          LoggerService.info('Dirección obtenida (display_name): $displayName');
-          return displayName;
-        }
-        
-        // Si no hay display_name, intentar construir desde componentes
+        // Intentar construir la dirección desde los componentes individuales primero
         final address = data['address'] as Map<String, dynamic>?;
         if (address != null) {
+          LoggerService.info('Componentes de dirección encontrados: $address');
           final components = <String>[];
           
-          if (address['road'] != null) components.add(address['road']);
-          if (address['house_number'] != null) components.add(address['house_number']);
-          if (address['suburb'] != null) components.add(address['suburb']);
-          if (address['city'] != null) {
-            components.add(address['city']);
-          } else if (address['town'] != null) {
-            components.add(address['town']);
+          final addressParts = {
+            'road': 'Calle',
+            'house_number': 'Número',
+            'suburb': 'Barrio',
+            'city': 'Ciudad',
+            'town': 'Pueblo',
+            'county': 'Municipio',
+            'state': 'Provincia',
+            'postcode': 'CP'
+          };
+
+          for (final entry in addressParts.entries) {
+            final value = address[entry.key];
+            if (value != null && value.toString().isNotEmpty) {
+              components.add(value.toString());
+            }
           }
-          if (address['postcode'] != null) components.add(address['postcode']);
           
           if (components.isNotEmpty) {
             final formattedAddress = components.join(', ');
             LoggerService.info('Dirección formateada desde componentes: $formattedAddress');
             return formattedAddress;
           }
+        }
+        
+        // Si no se pudo construir desde componentes, usar display_name
+        final displayName = data['display_name'] as String?;
+        if (displayName != null && displayName.isNotEmpty) {
+          LoggerService.info('Usando display_name como dirección: $displayName');
+          return displayName;
         }
         
         LoggerService.info('No se encontró información de dirección en la respuesta');
