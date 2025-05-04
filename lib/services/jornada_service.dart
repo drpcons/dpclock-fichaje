@@ -41,16 +41,18 @@ class JornadaService {
           }
 
           // Intentar acceder a las propiedades de manera segura
-          dynamic latValue = js.JsObject.fromBrowserObject(result)['latitude'];
-          dynamic longValue = js.JsObject.fromBrowserObject(result)['longitude'];
+          dynamic latValue = result['latitude'];
+          dynamic longValue = result['longitude'];
+
+          LoggerService.info('Valores recibidos: lat=$latValue, long=$longValue');
 
           // Convertir a double de manera segura
           double? latitude = (latValue is num) ? latValue.toDouble() : null;
           double? longitude = (longValue is num) ? longValue.toDouble() : null;
 
-          if (latitude == null || longitude == null) {
+          if (latitude == null || longitude == null || latitude == 0 || longitude == 0) {
             LoggerService.error('Valores de coordenadas inválidos: lat=$latValue, long=$longValue');
-            throw 'Coordenadas inválidas';
+            throw 'Coordenadas inválidas o no disponibles';
           }
 
           LoggerService.info('Ubicación web obtenida: lat=$latitude, long=$longitude');
@@ -61,11 +63,7 @@ class JornadaService {
           };
         } catch (e) {
           LoggerService.error('Error al procesar ubicación web: $e');
-          return {
-            'latitude': 0.0,
-            'longitude': 0.0,
-            'address': 'Error al obtener ubicación: $e'
-          };
+          throw 'Error al obtener ubicación: $e';
         }
       } else {
         bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -114,11 +112,7 @@ class JornadaService {
       }
     } catch (e) {
       LoggerService.error('Error general al obtener la ubicación: $e');
-      return {
-        'latitude': 0.0,
-        'longitude': 0.0,
-        'address': 'Error al obtener ubicación: $e'
-      };
+      throw 'Error al obtener ubicación: $e';
     }
   }
 

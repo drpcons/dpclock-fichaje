@@ -38,7 +38,7 @@
   <script>
     // Función para validar las coordenadas
     function isValidCoordinate(value) {
-      return typeof value === 'number' && !isNaN(value) && isFinite(value);
+      return typeof value === 'number' && !isNaN(value) && isFinite(value) && value !== 0;
     }
 
     // Función para obtener la ubicación con reintentos
@@ -54,28 +54,24 @@
 
           navigator.geolocation.getCurrentPosition(
             (position) => {
-              try {
-                const latitude = position.coords.latitude;
-                const longitude = position.coords.longitude;
-                
-                if (!isValidCoordinate(latitude) || !isValidCoordinate(longitude)) {
-                  console.error('Coordenadas inválidas:', { latitude, longitude });
-                  reject(new Error('Coordenadas inválidas recibidas del navegador'));
-                  return;
-                }
+              const latitude = position.coords.latitude;
+              const longitude = position.coords.longitude;
+              
+              console.log('Coordenadas recibidas:', { latitude, longitude });
 
-                const result = {
-                  latitude: Number(latitude),
-                  longitude: Number(longitude),
-                  accuracy: position.coords.accuracy
-                };
-
-                console.log('Ubicación obtenida exitosamente:', result);
-                resolve(result);
-              } catch (error) {
-                console.error('Error al procesar coordenadas:', error);
-                reject(error);
+              if (!isValidCoordinate(latitude) || !isValidCoordinate(longitude)) {
+                console.error('Coordenadas inválidas:', { latitude, longitude });
+                reject(new Error('Coordenadas inválidas recibidas del navegador'));
+                return;
               }
+
+              const result = {
+                latitude: latitude,
+                longitude: longitude
+              };
+
+              console.log('Ubicación obtenida exitosamente:', result);
+              resolve(result);
             },
             (error) => {
               let errorMessage;
@@ -98,7 +94,7 @@
             },
             {
               enableHighAccuracy: true,
-              timeout: 10000,
+              timeout: 15000,
               maximumAge: 0
             }
           );
@@ -118,10 +114,7 @@
           });
       }
 
-      return retry().catch(error => {
-        console.error('Error final después de reintentos:', error);
-        throw error;
-      });
+      return retry();
     }
 
     // Verificar permisos al cargar
@@ -134,16 +127,6 @@
             permissionStatus.onchange = function() {
               console.log('Cambio en permisos de geolocalización:', permissionStatus.state);
             };
-
-            if (permissionStatus.state === 'prompt' || permissionStatus.state === 'granted') {
-              window.getGeoLocation()
-                .then(position => {
-                  console.log('Ubicación inicial obtenida:', JSON.stringify(position));
-                })
-                .catch(error => {
-                  console.error('Error al obtener ubicación inicial:', error.message);
-                });
-            }
           })
           .catch(error => {
             console.error('Error al consultar permisos de geolocalización:', error);
