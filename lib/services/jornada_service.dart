@@ -55,11 +55,37 @@ class JornadaService {
             throw 'Coordenadas inválidas o no disponibles';
           }
 
-          LoggerService.info('Ubicación web obtenida: lat=$latitude, long=$longitude');
+          String address = _formatCoordinates(latitude, longitude);
+          
+          try {
+            final List<Placemark> placemarks = await placemarkFromCoordinates(
+              latitude,
+              longitude,
+            );
+
+            if (placemarks.isNotEmpty) {
+              final place = placemarks.first;
+              final parts = [
+                place.street,
+                place.locality,
+                place.postalCode,
+                place.country,
+              ].where((part) => part != null && part.isNotEmpty).toList();
+              
+              if (parts.isNotEmpty) {
+                address = parts.join(', ');
+              }
+            }
+          } catch (e) {
+            LoggerService.error('Error al obtener dirección, usando coordenadas como respaldo', e);
+            // Continuamos con las coordenadas como dirección
+          }
+
+          LoggerService.info('Ubicación web obtenida: lat=$latitude, long=$longitude, address=$address');
           return {
             'latitude': latitude,
             'longitude': longitude,
-            'address': _formatCoordinates(latitude, longitude)
+            'address': address
           };
         } catch (e) {
           LoggerService.error('Error al procesar ubicación web: $e');
