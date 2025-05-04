@@ -122,15 +122,24 @@ class JornadaService {
         if (locationDataFromScreen != null) {
           LoggerService.info('Usando datos de ubicación de la pantalla: $locationDataFromScreen');
           
-          // Verificar que la dirección no sea nula
-          if (locationDataFromScreen['address'] == null) {
-            throw Exception('La dirección es nula');
+          // Verificar y procesar la dirección
+          String address;
+          if (locationDataFromScreen['address'] == null || locationDataFromScreen['address'].toString().isEmpty) {
+            // Si no hay dirección, usar las coordenadas
+            address = _formatCoordinates(
+              locationDataFromScreen['latitude'] as double,
+              locationDataFromScreen['longitude'] as double
+            );
+            LoggerService.info('Usando coordenadas como dirección: $address');
+          } else {
+            address = locationDataFromScreen['address'] as String;
+            LoggerService.info('Usando dirección proporcionada: $address');
           }
           
           locationData = {
             'latitude': locationDataFromScreen['latitude'] as double,
             'longitude': locationDataFromScreen['longitude'] as double,
-            'address': locationDataFromScreen['address'] as String
+            'address': address
           };
           
           LoggerService.info('Datos de ubicación procesados: $locationData');
@@ -142,7 +151,11 @@ class JornadaService {
 
         // Verificación final de los datos
         if (locationData['address'] == null || locationData['address'].toString().isEmpty) {
-          throw Exception('La dirección es nula o vacía');
+          locationData['address'] = _formatCoordinates(
+            locationData['latitude'] as double,
+            locationData['longitude'] as double
+          );
+          LoggerService.info('Usando coordenadas como dirección por defecto: ${locationData['address']}');
         }
 
         final registro = {
@@ -169,6 +182,10 @@ class JornadaService {
         final locationAddress = savedData?['locationAddress'] as String?;
         if (locationAddress == null || locationAddress.isEmpty) {
           LoggerService.error('La dirección no se guardó correctamente en Firestore');
+          // Intentar actualizar el documento con la dirección
+          await docRef.update({
+            'locationAddress': locationData['address']
+          });
         }
 
         LoggerService.info('Registro de fichaje creado exitosamente: $tipo');

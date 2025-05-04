@@ -38,8 +38,13 @@ class RegistroJornada {
     try {
       // Procesar la dirección
       String? locationAddress = data['locationAddress'] as String?;
-      if (locationAddress != null && locationAddress.isEmpty) {
-        locationAddress = null;
+      if (locationAddress == null || locationAddress.isEmpty) {
+        // Si no hay dirección, intentar construirla desde las coordenadas
+        final latitude = data['latitude'];
+        final longitude = data['longitude'];
+        if (latitude != null && longitude != null) {
+          locationAddress = 'Lat: ${latitude.toString()}, Long: ${longitude.toString()}';
+        }
       }
 
       // Procesar coordenadas
