@@ -18,7 +18,11 @@ class _FicharScreenState extends State<FicharScreen> {
   String? _locationError;
   bool _isLoading = false;
 
-  Future<String?> _getAddressFromCoordinates(double latitude, double longitude) async {
+  String _formatCoordinates(double latitude, double longitude) {
+    return 'Lat: ${latitude.toStringAsFixed(6)}, Long: ${longitude.toStringAsFixed(6)}';
+  }
+
+  Future<String> _getAddressFromCoordinates(double latitude, double longitude) async {
     try {
       LoggerService.info('Intentando obtener dirección para coordenadas: $latitude, $longitude');
       final url = 'https://nominatim.openstreetmap.org/reverse?format=json&lat=$latitude&lon=$longitude&accept-language=es';
@@ -63,7 +67,26 @@ class _FicharScreenState extends State<FicharScreen> {
     });
 
     try {
-      final position = await Geolocator.getCurrentPosition();
+      LoggerService.info('Solicitando permisos de ubicación...');
+      LocationPermission permission = await Geolocator.checkPermission();
+      
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          throw Exception('Permisos de ubicación denegados');
+        }
+      }
+      
+      if (permission == LocationPermission.deniedForever) {
+        throw Exception('Permisos de ubicación permanentemente denegados');
+      }
+
+      LoggerService.info('Obteniendo posición actual...');
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 15),
+      );
+      
       LoggerService.info('Posición obtenida: ${position.latitude}, ${position.longitude}');
       
       final address = await _getAddressFromCoordinates(position.latitude, position.longitude);
@@ -195,70 +218,25 @@ class _FicharScreenState extends State<FicharScreen> {
                             'address': _currentAddress
                           };
 
-                          LoggerService.info('Enviando datos de ubicación para fichaje: $locationData');
+                          LoggerService.info('Registrando entrada con ubicación: $locationData');
+                          await JornadaService().registrarFichaje('entrada', locationData);
                           
-                          await JornadaService().registrarFichaje('ENTRADA', locationData);
                           if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Entrada registrada correctamente')),
+                              const SnackBar(
+                                content: Text('Entrada registrada correctamente'),
+                                backgroundColor: Colors.green,
+                              ),
                             );
                           }
                         } catch (e) {
+                          LoggerService.error('Error al registrar entrada: $e');
                           if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Error al registrar entrada: $e')),
-                            );
-                          }
-                        }
-                      },
-                      child: const Text(
-                        'Entrada',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.orange,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      onPressed: _isLoading ? null : () async {
-                        try {
-                          if (_currentPosition == null) {
-                            throw Exception('No hay ubicación disponible');
-                          }
-
-                          if (_currentAddress == null) {
-                            throw Exception('La dirección no está disponible');
-                          }
-                          
-                          final locationData = {
-                            'latitude': _currentPosition!.latitude,
-                            'longitude': _currentPosition!.longitude,
-                            'address': _currentAddress
-                          };
-
-                          LoggerService.info('Enviando datos de ubicación para fichaje: $locationData');
-                          
-                          await JornadaService().registrarFichaje('PAUSA', locationData);
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Pausa registrada correctamente')),
-                            );
-                          }
-                        } catch (e) {
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Error al registrar pausa: $e')),
+                              SnackBar(
+                                content: Text('Error al registrar entrada: $e'),
+                                backgroundColor: Colors.red,
+                              ),
                             );
                           }
                         }
@@ -266,10 +244,10 @@ class _FicharScreenState extends State<FicharScreen> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: const [
-                          Icon(Icons.pause, color: Colors.white),
+                          Icon(Icons.login, color: Colors.white),
                           SizedBox(width: 8),
                           Text(
-                            'Pausa',
+                            'Entrada',
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 16,
@@ -279,7 +257,7 @@ class _FicharScreenState extends State<FicharScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 16),
                   Expanded(
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
@@ -305,18 +283,25 @@ class _FicharScreenState extends State<FicharScreen> {
                             'address': _currentAddress
                           };
 
-                          LoggerService.info('Enviando datos de ubicación para fichaje: $locationData');
+                          LoggerService.info('Registrando salida con ubicación: $locationData');
+                          await JornadaService().registrarFichaje('salida', locationData);
                           
-                          await JornadaService().registrarFichaje('SALIDA', locationData);
                           if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Salida registrada correctamente')),
+                              const SnackBar(
+                                content: Text('Salida registrada correctamente'),
+                                backgroundColor: Colors.green,
+                              ),
                             );
                           }
                         } catch (e) {
+                          LoggerService.error('Error al registrar salida: $e');
                           if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Error al registrar salida: $e')),
+                              SnackBar(
+                                content: Text('Error al registrar salida: $e'),
+                                backgroundColor: Colors.red,
+                              ),
                             );
                           }
                         }
@@ -344,9 +329,5 @@ class _FicharScreenState extends State<FicharScreen> {
         ),
       ),
     );
-  }
-
-  String _formatCoordinates(double latitude, double longitude) {
-    return 'Lat: ${latitude.toStringAsFixed(6)}, Long: ${longitude.toStringAsFixed(6)}';
   }
 } 

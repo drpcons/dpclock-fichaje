@@ -44,7 +44,9 @@
     // Función para obtener la dirección desde OpenStreetMap
     async function getAddressFromCoordinates(latitude, longitude) {
       try {
+        console.log('Obteniendo dirección para:', { latitude, longitude });
         const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&accept-language=es`;
+        
         const response = await fetch(url, {
           headers: {
             'User-Agent': 'Fichaje App (https://github.com/drpcons/drpcons-fichaje)',
@@ -57,6 +59,8 @@
         }
 
         const data = await response.json();
+        console.log('Respuesta de OpenStreetMap:', data);
+        
         if (data.display_name) {
           console.log('Dirección obtenida:', data.display_name);
           return data.display_name;
