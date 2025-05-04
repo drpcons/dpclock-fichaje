@@ -21,10 +21,19 @@ class _FicharScreenState extends State<FicharScreen> {
   Future<String?> _getAddressFromCoordinates(double latitude, double longitude) async {
     try {
       LoggerService.info('Intentando obtener dirección para coordenadas: $latitude, $longitude');
+      final url = 'https://nominatim.openstreetmap.org/reverse?format=json&lat=$latitude&lon=$longitude&accept-language=es';
+      LoggerService.info('URL de geocodificación: $url');
+      
       final response = await http.get(
-        Uri.parse('https://nominatim.openstreetmap.org/reverse?format=json&lat=$latitude&lon=$longitude&accept-language=es'),
-        headers: {'User-Agent': 'Fichaje App (https://github.com/drpcons/drpcons-fichaje)'},
+        Uri.parse(url),
+        headers: {
+          'User-Agent': 'Fichaje App (https://github.com/drpcons/drpcons-fichaje)',
+          'Accept': 'application/json'
+        },
       );
+
+      LoggerService.info('Respuesta del servidor: ${response.statusCode}');
+      LoggerService.info('Contenido de la respuesta: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -32,10 +41,16 @@ class _FicharScreenState extends State<FicharScreen> {
         if (address != null && address.isNotEmpty) {
           LoggerService.info('Dirección obtenida: $address');
           return address;
+        } else {
+          LoggerService.info('No se encontró dirección en la respuesta');
         }
+      } else {
+        LoggerService.error('Error en la respuesta del servidor: ${response.statusCode}');
       }
-      LoggerService.info('No se pudo obtener dirección, usando coordenadas');
-      return 'Lat: ${latitude.toStringAsFixed(6)}, Long: ${longitude.toStringAsFixed(6)}';
+      
+      final coordsStr = 'Lat: ${latitude.toStringAsFixed(6)}, Long: ${longitude.toStringAsFixed(6)}';
+      LoggerService.info('Usando coordenadas como respaldo: $coordsStr');
+      return coordsStr;
     } catch (e) {
       LoggerService.error('Error al obtener dirección: $e');
       return 'Lat: ${latitude.toStringAsFixed(6)}, Long: ${longitude.toStringAsFixed(6)}';
@@ -147,48 +162,84 @@ class _FicharScreenState extends State<FicharScreen> {
           children: [
             _buildLocationWidget(),
             const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                ElevatedButton(
-                  onPressed: () async {
-                    try {
-                      await JornadaService().registrarFichaje('Entrada');
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Entrada registrada correctamente')),
-                        );
-                      }
-                    } catch (e) {
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Error al registrar entrada: $e')),
-                        );
-                      }
-                    }
-                  },
-                  child: const Text('Entrada'),
-                ),
-                ElevatedButton(
-                  onPressed: () async {
-                    try {
-                      await JornadaService().registrarFichaje('Salida');
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Salida registrada correctamente')),
-                        );
-                      }
-                    } catch (e) {
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Error al registrar salida: $e')),
-                        );
-                      }
-                    }
-                  },
-                  child: const Text('Salida'),
-                ),
-              ],
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      onPressed: _isLoading ? null : () async {
+                        try {
+                          await JornadaService().registrarFichaje('Entrada');
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Entrada registrada correctamente')),
+                            );
+                          }
+                        } catch (e) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Error al registrar entrada: $e')),
+                            );
+                          }
+                        }
+                      },
+                      child: const Text(
+                        'Entrada',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      onPressed: _isLoading ? null : () async {
+                        try {
+                          await JornadaService().registrarFichaje('Salida');
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Salida registrada correctamente')),
+                            );
+                          }
+                        } catch (e) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Error al registrar salida: $e')),
+                            );
+                          }
+                        }
+                      },
+                      child: const Text(
+                        'Salida',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
