@@ -380,15 +380,7 @@ class _JornadasScreenState extends State<JornadasScreen> {
         horizontalAlign: HorizontalAlign.Center,
       );
       
-      var entradaStyle = CellStyle(
-        horizontalAlign: HorizontalAlign.Left,
-      );
-      
-      var pausaStyle = CellStyle(
-        horizontalAlign: HorizontalAlign.Left,
-      );
-      
-      var salidaStyle = CellStyle(
+      var dataStyle = CellStyle(
         horizontalAlign: HorizontalAlign.Left,
       );
 
@@ -404,79 +396,78 @@ class _JornadasScreenState extends State<JornadasScreen> {
 
         if (_filterTipo != 'TODOS') {
           sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex))
-            .value = TextCellValue('Tipo: $_filterTipo');
+            ..value = TextCellValue('Tipo: $_filterTipo')
+            ..cellStyle = dataStyle;
           rowIndex++;
         }
-        
+
         if (_filterNombre.isNotEmpty) {
           sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex))
-            .value = TextCellValue('Nombre contiene: $_filterNombre');
+            ..value = TextCellValue('Nombre: $_filterNombre')
+            ..cellStyle = dataStyle;
           rowIndex++;
         }
-        
+
         if (_filterEmail.isNotEmpty) {
           sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex))
-            .value = TextCellValue('Email contiene: $_filterEmail');
+            ..value = TextCellValue('Email: $_filterEmail')
+            ..cellStyle = dataStyle;
           rowIndex++;
         }
-        
+
         if (_filterUbicacion.isNotEmpty) {
           sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex))
-            .value = TextCellValue('Ubicación contiene: $_filterUbicacion');
+            ..value = TextCellValue('Ubicación: $_filterUbicacion')
+            ..cellStyle = dataStyle;
           rowIndex++;
         }
-        
+
         if (_filterFechaInicio != null && _filterFechaFin != null) {
           sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex))
-            .value = TextCellValue('Rango de fechas: ${dateFormat.format(_filterFechaInicio!)} - ${dateFormat.format(_filterFechaFin!)}');
+            ..value = TextCellValue('Rango de fechas: ${DateFormat('dd/MM/yyyy').format(_filterFechaInicio!)} - ${DateFormat('dd/MM/yyyy').format(_filterFechaFin!)}')
+            ..cellStyle = dataStyle;
           rowIndex++;
         }
 
-        // Agregar línea en blanco después de los filtros
-        rowIndex += 2;
+        rowIndex++; // Espacio en blanco
       }
 
-      // Configurar encabezados
-      final headers = ['Tipo', 'Fecha', 'Nombre', 'Email', 'Ubicación'];
-      for (var i = 0; i < headers.length; i++) {
-        sheet.cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: rowIndex))
-          ..value = TextCellValue(headers[i])
-          ..cellStyle = headerStyle;
-      }
+      // Agregar encabezados
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex))
+        ..value = TextCellValue('Tipo')
+        ..cellStyle = headerStyle;
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex))
+        ..value = TextCellValue('Fecha/Hora')
+        ..cellStyle = headerStyle;
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: rowIndex))
+        ..value = TextCellValue('Nombre')
+        ..cellStyle = headerStyle;
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: rowIndex))
+        ..value = TextCellValue('Email')
+        ..cellStyle = headerStyle;
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: rowIndex))
+        ..value = TextCellValue('Ubicación')
+        ..cellStyle = headerStyle;
+      
       rowIndex++;
 
-      // Agregar datos con el estilo correspondiente según el tipo
+      // Agregar datos
       for (var registro in registros) {
-        var style = entradaStyle;
-
-        switch (registro.tipo) {
-          case 'ENTRADA':
-            style = entradaStyle;
-            break;
-          case 'PAUSA':
-            style = pausaStyle;
-            break;
-          case 'SALIDA':
-            style = salidaStyle;
-            break;
-        }
-
-        // Agregar datos con el estilo correspondiente
         sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex))
           ..value = TextCellValue(registro.tipo)
-          ..cellStyle = style;
+          ..cellStyle = dataStyle;
         sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex))
           ..value = TextCellValue(dateFormat.format(registro.fecha))
-          ..cellStyle = style;
+          ..cellStyle = dataStyle;
         sheet.cell(CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: rowIndex))
           ..value = TextCellValue(registro.userName)
-          ..cellStyle = style;
+          ..cellStyle = dataStyle;
         sheet.cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: rowIndex))
           ..value = TextCellValue(registro.userEmail)
-          ..cellStyle = style;
+          ..cellStyle = dataStyle;
         sheet.cell(CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: rowIndex))
           ..value = TextCellValue(registro.locationAddress ?? 'Sin ubicación')
-          ..cellStyle = style;
+          ..cellStyle = dataStyle;
         
         rowIndex++;
       }
