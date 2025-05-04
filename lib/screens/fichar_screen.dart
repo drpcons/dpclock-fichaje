@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:geocoding/geocoding.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import '../services/jornada_service.dart';
 import '../services/logger_service.dart';
 
@@ -17,6 +18,30 @@ class _FicharScreenState extends State<FicharScreen> {
   String? _locationError;
   bool _isLoading = false;
 
+  Future<String?> _getAddressFromCoordinates(double latitude, double longitude) async {
+    try {
+      LoggerService.info('Intentando obtener dirección para coordenadas: $latitude, $longitude');
+      final response = await http.get(
+        Uri.parse('https://nominatim.openstreetmap.org/reverse?format=json&lat=$latitude&lon=$longitude&accept-language=es'),
+        headers: {'User-Agent': 'Fichaje App (https://github.com/drpcons/drpcons-fichaje)'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final address = data['display_name'] as String?;
+        if (address != null && address.isNotEmpty) {
+          LoggerService.info('Dirección obtenida: $address');
+          return address;
+        }
+      }
+      LoggerService.info('No se pudo obtener dirección, usando coordenadas');
+      return 'Lat: ${latitude.toStringAsFixed(6)}, Long: ${longitude.toStringAsFixed(6)}';
+    } catch (e) {
+      LoggerService.error('Error al obtener dirección: $e');
+      return 'Lat: ${latitude.toStringAsFixed(6)}, Long: ${longitude.toStringAsFixed(6)}';
+    }
+  }
+
   Future<void> _updateLocation() async {
     setState(() {
       _isLoading = true;
@@ -26,39 +51,7 @@ class _FicharScreenState extends State<FicharScreen> {
 
     try {
       final position = await Geolocator.getCurrentPosition();
-      String? address;
-      
-      try {
-        LoggerService.info('Intentando obtener dirección para coordenadas: ${position.latitude}, ${position.longitude}');
-        List<Placemark> placemarks = await placemarkFromCoordinates(
-          position.latitude,
-          position.longitude,
-        );
-        
-        if (placemarks.isNotEmpty) {
-          Placemark place = placemarks[0];
-          List<String> addressParts = [];
-          
-          if (place.street?.isNotEmpty ?? false) addressParts.add(place.street!);
-          if (place.locality?.isNotEmpty ?? false) addressParts.add(place.locality!);
-          if (place.postalCode?.isNotEmpty ?? false) addressParts.add(place.postalCode!);
-          if (place.country?.isNotEmpty ?? false) addressParts.add(place.country!);
-          
-          if (addressParts.isNotEmpty) {
-            address = addressParts.join(', ');
-            LoggerService.info('Dirección obtenida: $address');
-          } else {
-            address = 'Lat: ${position.latitude.toStringAsFixed(6)}, Long: ${position.longitude.toStringAsFixed(6)}';
-            LoggerService.info('No se pudo obtener dirección legible, usando coordenadas');
-          }
-        } else {
-          address = 'Lat: ${position.latitude.toStringAsFixed(6)}, Long: ${position.longitude.toStringAsFixed(6)}';
-          LoggerService.info('No se encontraron placemarks, usando coordenadas');
-        }
-      } catch (e) {
-        LoggerService.error('Error al obtener dirección: $e');
-        address = 'Lat: ${position.latitude.toStringAsFixed(6)}, Long: ${position.longitude.toStringAsFixed(6)}';
-      }
+      final address = await _getAddressFromCoordinates(position.latitude, position.longitude);
 
       setState(() {
         _currentPosition = position;

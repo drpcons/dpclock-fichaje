@@ -57,6 +57,9 @@ dependencies:
   # Excel
   excel: ^2.1.0
 
+  # Added from the code block
+  http: ^1.1.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
