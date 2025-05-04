@@ -384,40 +384,130 @@ class _JornadasScreenState extends State<JornadasScreen> {
 
       final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
       final now = DateTime.now();
-      final fileName = 'registros_${DateFormat('yyyyMMdd_HHmm').format(now)}.csv';
+      final fileName = 'registros_${DateFormat('yyyyMMdd_HHmm').format(now)}.xlsx';
       
-      // Crear contenido CSV
-      final StringBuffer csvContent = StringBuffer();
+      // Crear archivo Excel
+      var excel = Excel.createExcel();
+      var sheet = excel['Registros'];
       
-      // Encabezados
-      csvContent.writeln('Tipo,Fecha,Nombre,Email,Ubicación');
+      // Definir estilos
+      var headerStyle = CellStyle(
+        bold: true,
+        horizontalAlign: HorizontalAlign.Center,
+      );
       
-      // Datos
-      for (var registro in registros) {
-        final List<String> row = [
-          registro.tipo,
-          dateFormat.format(registro.fecha),
-          registro.userName,
-          registro.userEmail,
-          registro.locationAddress ?? 'Sin ubicación'
-        ].map((field) => '"${field.replaceAll('"', '""')}"').toList();
-        
-        csvContent.writeln(row.join(','));
+      var dataStyle = CellStyle(
+        horizontalAlign: HorizontalAlign.Left,
+      );
+
+      // Agregar información de filtros aplicados
+      var rowIndex = 0;
+      
+      if (_filterTipo != 'TODOS' || _filterNombre.isNotEmpty || _filterEmail.isNotEmpty || 
+          _filterUbicacion.isNotEmpty || _filterFechaInicio != null) {
+        sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex))
+          ..value = TextCellValue('Filtros Aplicados:')
+          ..cellStyle = headerStyle;
+        rowIndex++;
+
+        if (_filterTipo != 'TODOS') {
+          sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex))
+            ..value = TextCellValue('Tipo: $_filterTipo')
+            ..cellStyle = dataStyle;
+          rowIndex++;
+        }
+
+        if (_filterNombre.isNotEmpty) {
+          sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex))
+            ..value = TextCellValue('Nombre: $_filterNombre')
+            ..cellStyle = dataStyle;
+          rowIndex++;
+        }
+
+        if (_filterEmail.isNotEmpty) {
+          sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex))
+            ..value = TextCellValue('Email: $_filterEmail')
+            ..cellStyle = dataStyle;
+          rowIndex++;
+        }
+
+        if (_filterUbicacion.isNotEmpty) {
+          sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex))
+            ..value = TextCellValue('Ubicación: $_filterUbicacion')
+            ..cellStyle = dataStyle;
+          rowIndex++;
+        }
+
+        if (_filterFechaInicio != null && _filterFechaFin != null) {
+          sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex))
+            ..value = TextCellValue('Rango de fechas: ${DateFormat('dd/MM/yyyy').format(_filterFechaInicio!)} - ${DateFormat('dd/MM/yyyy').format(_filterFechaFin!)}')
+            ..cellStyle = dataStyle;
+          rowIndex++;
+        }
+
+        rowIndex++; // Espacio en blanco
       }
+
+      // Agregar encabezados
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex))
+        ..value = TextCellValue('Tipo')
+        ..cellStyle = headerStyle;
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex))
+        ..value = TextCellValue('Fecha/Hora')
+        ..cellStyle = headerStyle;
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: rowIndex))
+        ..value = TextCellValue('Nombre')
+        ..cellStyle = headerStyle;
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: rowIndex))
+        ..value = TextCellValue('Email')
+        ..cellStyle = headerStyle;
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: rowIndex))
+        ..value = TextCellValue('Ubicación')
+        ..cellStyle = headerStyle;
+      
+      rowIndex++;
+
+      // Agregar datos
+      for (var registro in registros) {
+        sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex))
+          ..value = TextCellValue(registro.tipo)
+          ..cellStyle = dataStyle;
+        sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex))
+          ..value = TextCellValue(dateFormat.format(registro.fecha))
+          ..cellStyle = dataStyle;
+        sheet.cell(CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: rowIndex))
+          ..value = TextCellValue(registro.userName)
+          ..cellStyle = dataStyle;
+        sheet.cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: rowIndex))
+          ..value = TextCellValue(registro.userEmail)
+          ..cellStyle = dataStyle;
+        sheet.cell(CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: rowIndex))
+          ..value = TextCellValue(registro.locationAddress ?? 'Sin ubicación')
+          ..cellStyle = dataStyle;
+        
+        rowIndex++;
+      }
+
+      // Ajustar ancho de columnas
+      sheet.setColumnWidth(0, 15.0); // Tipo
+      sheet.setColumnWidth(1, 25.0); // Fecha
+      sheet.setColumnWidth(2, 20.0); // Nombre
+      sheet.setColumnWidth(3, 30.0); // Email
+      sheet.setColumnWidth(4, 40.0); // Ubicación
 
       // Cerrar diálogo de progreso
       if (context.mounted) {
         Navigator.of(context).pop();
       }
 
-      // Convertir a bytes
-      final bytes = csvContent.toString().codeUnits;
+      // Convertir el archivo Excel a bytes
+      final bytes = excel.encode()!;
 
       if (kIsWeb) {
         // En la web, usar el método de descarga web
         final content = base64Encode(bytes);
         final anchor = html.AnchorElement(
-          href: 'data:text/csv;charset=utf-8;base64,$content'
+          href: 'data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,$content'
         )
           ..setAttribute('download', fileName)
           ..click();
@@ -425,7 +515,7 @@ class _JornadasScreenState extends State<JornadasScreen> {
         // En móvil, usar el método de compartir
         final tempDir = await getTemporaryDirectory();
         final file = File('${tempDir.path}/$fileName');
-        await file.writeAsString(csvContent.toString());
+        await file.writeAsBytes(bytes);
 
         if (context.mounted) {
           try {
