@@ -314,10 +314,12 @@ class _FicharScreenState extends State<FicharScreen> {
             const SizedBox(height: 16),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Expanded(
+                  // Botón de Entrada (Verde)
+                  SizedBox(
+                    width: double.infinity,
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.green,
@@ -381,8 +383,77 @@ class _FicharScreenState extends State<FicharScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
+                  const SizedBox(height: 16),
+                  // Botón de Pausa (Amarillo)
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.amber,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      onPressed: _isLoading ? null : () async {
+                        try {
+                          if (_currentPosition == null) {
+                            throw Exception('No hay ubicación disponible');
+                          }
+
+                          if (_currentAddress == null) {
+                            throw Exception('La dirección no está disponible');
+                          }
+                          
+                          final locationData = {
+                            'latitude': _currentPosition!.latitude,
+                            'longitude': _currentPosition!.longitude,
+                            'address': _currentAddress
+                          };
+
+                          LoggerService.info('Registrando pausa con ubicación: $locationData');
+                          await JornadaService().registrarFichaje('pausa', locationData);
+                          
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Pausa registrada correctamente'),
+                                backgroundColor: Colors.amber,
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          LoggerService.error('Error al registrar pausa: $e');
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Error al registrar pausa: $e'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        }
+                      },
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: const [
+                          Icon(Icons.pause_circle_outline, color: Colors.white),
+                          SizedBox(width: 8),
+                          Text(
+                            'Pausa',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  // Botón de Salida (Rojo)
+                  SizedBox(
+                    width: double.infinity,
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.red,
