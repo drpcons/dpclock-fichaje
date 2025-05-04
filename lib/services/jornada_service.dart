@@ -8,6 +8,8 @@ import 'dart:convert';
 import '../models/registro_jornada.dart';
 import 'auth_service.dart';
 import 'logger_service.dart';
+import 'dart:html' as html;
+import 'dart:async';
 
 class JornadaService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -23,44 +25,77 @@ class JornadaService {
 
   Future<String> _getAddressFromCoordinates(double latitude, double longitude) async {
     try {
-      if (kIsWeb) {
-        LoggerService.info('Obteniendo dirección usando OpenStreetMap en web');
-        final url = 'https://nominatim.openstreetmap.org/reverse?format=json&lat=$latitude&lon=$longitude&accept-language=es';
-        
-        final response = await http.get(
-          Uri.parse(url),
-          headers: {
-            'User-Agent': 'Fichaje App (https://github.com/drpcons/drpcons-fichaje)',
-            'Accept': 'application/json'
-          },
-        );
+      final url = Uri.parse('https://nominatim.openstreetmap.org/reverse')
+        .replace(queryParameters: {
+          'format': 'json',
+          'lat': latitude.toString(),
+          'lon': longitude.toString(),
+          'accept-language': 'es',
+          'zoom': '18'
+        });
 
-        if (response.statusCode == 200) {
-          final data = json.decode(response.body);
-          final address = data['display_name'] as String?;
-          if (address != null && address.isNotEmpty) {
-            LoggerService.info('Dirección web obtenida: $address');
-            return address;
+      final response = await http.get(
+        url,
+        headers: {
+          'User-Agent': 'Fichaje App/1.0',
+          'Accept': 'application/json',
+          'Origin': kIsWeb ? html.window.location.origin ?? 'https://fichaje-app.web.app' : 'app://fichaje'
+        },
+      ).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          throw TimeoutException('Tiempo de espera agotado al obtener la dirección');
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        String? address;
+
+        // 1. Intentar con display_name
+        final displayName = data['display_name'] as String?;
+        if (displayName != null && displayName.isNotEmpty) {
+          LoggerService.info('Usando display_name como dirección: $displayName');
+          address = displayName;
+        }
+
+        // 2. Si no hay display_name, intentar con address
+        if (address == null) {
+          final addressData = data['address'] as Map<String, dynamic>?;
+          if (addressData != null) {
+            final components = <String>[];
+            
+            // Orden de prioridad para componentes
+            final addressParts = [
+              'road',          // calle
+              'house_number',  // número
+              'suburb',        // barrio
+              'neighbourhood', // vecindario
+              'city',         // ciudad
+              'town',         // pueblo
+              'village',      // villa
+              'municipality', // municipio
+              'county',       // condado
+              'state',        // estado/provincia
+              'postcode'      // código postal
+            ];
+            
+            for (final key in addressParts) {
+              final value = addressData[key];
+              if (value != null && value.toString().isNotEmpty) {
+                components.add(value.toString());
+              }
+            }
+            
+            if (components.isNotEmpty) {
+              address = components.join(', ');
+              LoggerService.info('Dirección construida desde componentes: $address');
+            }
           }
         }
-      } else {
-        LoggerService.info('Obteniendo dirección usando geocoding en móvil');
-        final List<Placemark> placemarks = await placemarkFromCoordinates(latitude, longitude);
-        
-        if (placemarks.isNotEmpty) {
-          final place = placemarks.first;
-          final parts = [
-            place.street,
-            place.locality,
-            place.postalCode,
-            place.country,
-          ].where((part) => part != null && part.isNotEmpty).toList();
-          
-          if (parts.isNotEmpty) {
-            final address = parts.join(', ');
-            LoggerService.info('Dirección móvil obtenida: $address');
-            return address;
-          }
+
+        if (address != null && address.isNotEmpty) {
+          return address;
         }
       }
       
@@ -124,8 +159,11 @@ class JornadaService {
           
           // Verificar y procesar la dirección
           String address;
-          if (locationDataFromScreen['address'] == null || locationDataFromScreen['address'].toString().isEmpty) {
+          if (locationDataFromScreen['address'] == null || locationDataFromScreen['address'].toString().trim().isEmpty) {
             // Si no hay dirección, usar las coordenadas
+            if (locationDataFromScreen['latitude'] == null || locationDataFromScreen['longitude'] == null) {
+              throw Exception('No se proporcionaron coordenadas válidas');
+            }
             address = _formatCoordinates(
               locationDataFromScreen['latitude'] as double,
               locationDataFromScreen['longitude'] as double
@@ -150,7 +188,10 @@ class JornadaService {
         }
 
         // Verificación final de los datos
-        if (locationData['address'] == null || locationData['address'].toString().isEmpty) {
+        if (locationData['address'] == null || locationData['address'].toString().trim().isEmpty) {
+          if (locationData['latitude'] == null || locationData['longitude'] == null) {
+            throw Exception('No se pudo obtener información de ubicación válida');
+          }
           locationData['address'] = _formatCoordinates(
             locationData['latitude'] as double,
             locationData['longitude'] as double
@@ -179,8 +220,12 @@ class JornadaService {
         final savedData = savedDoc.data();
         LoggerService.info('Registro guardado en Firestore: $savedData');
         
-        final locationAddress = savedData?['locationAddress'] as String?;
-        if (locationAddress == null || locationAddress.isEmpty) {
+        if (savedData == null) {
+          throw Exception('Error al guardar el registro: no se encontraron datos');
+        }
+        
+        final locationAddress = savedData['locationAddress'] as String?;
+        if (locationAddress == null || locationAddress.trim().isEmpty) {
           LoggerService.error('La dirección no se guardó correctamente en Firestore');
           // Intentar actualizar el documento con la dirección
           await docRef.update({
@@ -195,7 +240,7 @@ class JornadaService {
       }
     } catch (e) {
       LoggerService.error('Error al registrar fichaje', e);
-      throw Exception('Error al registrar el fichaje: $e');
+      throw Exception('Error al registrar fichaje: $e');
     }
   }
 

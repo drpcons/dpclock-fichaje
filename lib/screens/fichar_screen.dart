@@ -5,6 +5,8 @@ import 'dart:async';
 import 'package:http/http.dart' as http;
 import '../services/jornada_service.dart';
 import '../services/logger_service.dart';
+import 'package:flutter/foundation.dart';
+import 'dart:html' as html;
 
 class FicharScreen extends StatefulWidget {
   const FicharScreen({super.key});
@@ -26,17 +28,31 @@ class _FicharScreenState extends State<FicharScreen> {
   Future<String> _getAddressFromCoordinates(double latitude, double longitude) async {
     try {
       LoggerService.info('Intentando obtener dirección para coordenadas: $latitude, $longitude');
-      final url = 'https://nominatim.openstreetmap.org/reverse?format=json&lat=$latitude&lon=$longitude&accept-language=es&zoom=18';
+      
+      // Aumentar el tiempo de espera para la web
+      final timeout = kIsWeb ? const Duration(seconds: 20) : const Duration(seconds: 10);
+      
+      final url = Uri.parse('https://nominatim.openstreetmap.org/reverse')
+        .replace(queryParameters: {
+          'format': 'json',
+          'lat': latitude.toString(),
+          'lon': longitude.toString(),
+          'accept-language': 'es',
+          'zoom': '18',
+          'addressdetails': '1'
+        });
+      
       LoggerService.info('URL de geocodificación: $url');
       
       final response = await http.get(
-        Uri.parse(url),
+        url,
         headers: {
           'User-Agent': 'Fichaje App/1.0',
-          'Accept': 'application/json'
+          'Accept': 'application/json',
+          'Origin': kIsWeb ? html.window.location.origin ?? 'https://fichaje-app.web.app' : 'app://fichaje',
         },
       ).timeout(
-        const Duration(seconds: 10),
+        timeout,
         onTimeout: () {
           LoggerService.error('Timeout al obtener dirección');
           throw TimeoutException('Tiempo de espera agotado al obtener la dirección');
@@ -50,46 +66,64 @@ class _FicharScreenState extends State<FicharScreen> {
         final data = json.decode(response.body);
         LoggerService.info('Datos decodificados: $data');
         
-        // Intentar construir la dirección desde los componentes individuales primero
-        final address = data['address'] as Map<String, dynamic>?;
-        if (address != null) {
-          LoggerService.info('Componentes de dirección encontrados: $address');
-          final components = <String>[];
-          
-          final addressParts = {
-            'road': 'Calle',
-            'house_number': 'Número',
-            'suburb': 'Barrio',
-            'city': 'Ciudad',
-            'town': 'Pueblo',
-            'county': 'Municipio',
-            'state': 'Provincia',
-            'postcode': 'CP'
-          };
-
-          for (final entry in addressParts.entries) {
-            final value = address[entry.key];
-            if (value != null && value.toString().isNotEmpty) {
-              components.add(value.toString());
-            }
-          }
-          
-          if (components.isNotEmpty) {
-            final formattedAddress = components.join(', ');
-            LoggerService.info('Dirección formateada desde componentes: $formattedAddress');
-            return formattedAddress;
-          }
-        }
+        // Intentar obtener la dirección de varias formas
+        String? address;
         
-        // Si no se pudo construir desde componentes, usar display_name
+        // 1. Intentar con display_name
         final displayName = data['display_name'] as String?;
         if (displayName != null && displayName.isNotEmpty) {
           LoggerService.info('Usando display_name como dirección: $displayName');
-          return displayName;
+          address = displayName;
         }
         
-        LoggerService.info('No se encontró información de dirección en la respuesta');
-        return _formatCoordinates(latitude, longitude);
+        // 2. Si no hay display_name, intentar con address
+        if (address == null) {
+          final addressData = data['address'] as Map<String, dynamic>?;
+          if (addressData != null) {
+            LoggerService.info('Componentes de dirección encontrados: $addressData');
+            
+            // Priorizar componentes más específicos
+            final components = <String>[];
+            
+            // Orden de prioridad para componentes de dirección
+            final addressParts = [
+              'road',          // calle
+              'house_number',  // número
+              'suburb',        // barrio
+              'neighbourhood', // vecindario
+              'city',         // ciudad
+              'town',         // pueblo
+              'village',      // villa
+              'municipality', // municipio
+              'county',       // condado
+              'state',        // estado/provincia
+              'postcode'      // código postal
+            ];
+            
+            // Agregar componentes en orden de prioridad
+            for (final key in addressParts) {
+              final value = addressData[key];
+              if (value != null && value.toString().isNotEmpty) {
+                components.add(value.toString());
+              }
+            }
+            
+            if (components.isNotEmpty) {
+              address = components.join(', ');
+              LoggerService.info('Dirección construida desde componentes: $address');
+            }
+          }
+        }
+        
+        // Si se obtuvo una dirección válida, devolverla
+        if (address != null && address.isNotEmpty) {
+          return address;
+        }
+        
+        // Si no se pudo obtener la dirección, usar coordenadas
+        final coordText = _formatCoordinates(latitude, longitude);
+        LoggerService.info('Usando coordenadas como fallback: $coordText');
+        return coordText;
       } else {
         LoggerService.error('Error en la respuesta del servidor: ${response.statusCode}');
         return _formatCoordinates(latitude, longitude);
@@ -109,35 +143,82 @@ class _FicharScreenState extends State<FicharScreen> {
 
     try {
       LoggerService.info('Solicitando permisos de ubicación...');
-      LocationPermission permission = await Geolocator.checkPermission();
       
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          throw Exception('Permisos de ubicación denegados');
+      if (kIsWeb) {
+        // En web, primero verificar si la geolocalización está disponible
+        if (!await Geolocator.isLocationServiceEnabled()) {
+          throw Exception('Los servicios de ubicación no están disponibles en el navegador');
         }
-      }
-      
-      if (permission == LocationPermission.deniedForever) {
-        throw Exception('Permisos de ubicación permanentemente denegados');
-      }
 
-      LoggerService.info('Obteniendo posición actual...');
-      final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 15),
-      );
-      
-      LoggerService.info('Posición obtenida: ${position.latitude}, ${position.longitude}');
-      
-      final address = await _getAddressFromCoordinates(position.latitude, position.longitude);
-      LoggerService.info('Dirección obtenida en _updateLocation: $address');
+        // Verificar permisos específicamente para web
+        LocationPermission permission = await Geolocator.checkPermission();
+        LoggerService.info('Estado inicial de permisos web: $permission');
+        
+        if (permission == LocationPermission.denied) {
+          permission = await Geolocator.requestPermission();
+          LoggerService.info('Permisos solicitados web: $permission');
+          if (permission == LocationPermission.denied) {
+            throw Exception('Permisos de ubicación denegados en el navegador');
+          }
+        }
+        
+        if (permission == LocationPermission.deniedForever) {
+          throw Exception('Permisos de ubicación permanentemente denegados en el navegador');
+        }
 
-      setState(() {
-        _currentPosition = position;
-        _currentAddress = address;
-        _isLoading = false;
-      });
+        // En web, usar alta precisión y un tiempo de espera más largo
+        LoggerService.info('Obteniendo posición en web...');
+        final position = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high,
+          timeLimit: const Duration(seconds: 20),
+        );
+        
+        LoggerService.info('Posición web obtenida: ${position.latitude}, ${position.longitude}');
+        
+        if (position.latitude == 0 && position.longitude == 0) {
+          throw Exception('No se pudo obtener una ubicación válida del navegador');
+        }
+
+        final address = await _getAddressFromCoordinates(position.latitude, position.longitude);
+        LoggerService.info('Dirección web obtenida: $address');
+
+        setState(() {
+          _currentPosition = position;
+          _currentAddress = address;
+          _isLoading = false;
+        });
+      } else {
+        // Código existente para móvil
+        LocationPermission permission = await Geolocator.checkPermission();
+        
+        if (permission == LocationPermission.denied) {
+          permission = await Geolocator.requestPermission();
+          if (permission == LocationPermission.denied) {
+            throw Exception('Permisos de ubicación denegados');
+          }
+        }
+        
+        if (permission == LocationPermission.deniedForever) {
+          throw Exception('Permisos de ubicación permanentemente denegados');
+        }
+
+        LoggerService.info('Obteniendo posición actual...');
+        final position = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high,
+          timeLimit: const Duration(seconds: 15),
+        );
+        
+        LoggerService.info('Posición obtenida: ${position.latitude}, ${position.longitude}');
+        
+        final address = await _getAddressFromCoordinates(position.latitude, position.longitude);
+        LoggerService.info('Dirección obtenida en _updateLocation: $address');
+
+        setState(() {
+          _currentPosition = position;
+          _currentAddress = address;
+          _isLoading = false;
+        });
+      }
       
       LoggerService.info('Estado actualizado - Dirección actual: $_currentAddress');
     } catch (e) {

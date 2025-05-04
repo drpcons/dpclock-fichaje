@@ -47,37 +47,46 @@ class _JornadasScreenState extends State<JornadasScreen> {
     LoggerService.info('Dirección: ${registro.locationAddress}');
     LoggerService.info('Coordenadas: ${registro.latitude}, ${registro.longitude}');
 
-    if (registro.locationAddress != null && registro.locationAddress!.isNotEmpty) {
-      LoggerService.info('Mostrando dirección: ${registro.locationAddress}');
-      return Text(
-        registro.locationAddress!,
-        style: const TextStyle(
-          fontSize: 12,
-          color: Colors.grey,
-        ),
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-      );
-    } else if (registro.latitude != null && registro.longitude != null) {
-      final coordText = 'Lat: ${registro.latitude!.toStringAsFixed(6)}, Long: ${registro.longitude!.toStringAsFixed(6)}';
-      LoggerService.info('Mostrando coordenadas: $coordText');
-      return Text(
-        coordText,
-        style: const TextStyle(
-          fontSize: 12,
-          color: Colors.grey,
-        ),
-      );
-    }
+    String locationText;
     
-    LoggerService.info('No hay información de ubicación disponible');
-    return const Text(
-      'Sin ubicación',
-      style: TextStyle(
-        fontSize: 12,
-        color: Colors.grey,
-        fontStyle: FontStyle.italic,
-      ),
+    // Primero intentar usar la dirección guardada
+    if (registro.locationAddress != null && registro.locationAddress!.trim().isNotEmpty) {
+      LoggerService.info('Usando dirección guardada: ${registro.locationAddress}');
+      locationText = registro.locationAddress!;
+    }
+    // Si no hay dirección, pero hay coordenadas, mostrarlas
+    else if (registro.latitude != null && registro.longitude != null) {
+      locationText = 'Lat: ${registro.latitude!.toStringAsFixed(6)}, Long: ${registro.longitude!.toStringAsFixed(6)}';
+      LoggerService.info('Usando coordenadas: $locationText');
+    }
+    // Si no hay ni dirección ni coordenadas
+    else {
+      locationText = 'Sin ubicación';
+      LoggerService.info('No hay información de ubicación disponible');
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Ubicación:',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: Colors.grey,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          locationText,
+          style: const TextStyle(
+            fontSize: 12,
+            color: Colors.grey,
+          ),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ],
     );
   }
 

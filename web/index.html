@@ -18,13 +18,32 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
-
+  <meta name="description" content="Aplicación de registro de jornadas laborales">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <!-- Firebase Configuration -->
+  <script src="https://www.gstatic.com/firebasejs/10.11.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.11.1/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.11.1/firebase-auth-compat.js"></script>
+  
+  <!-- Configuración de Flutter Web -->
+  <script>
+    window.flutterWebRenderer = "canvaskit";
+  </script>
+  
+  <!-- Seguridad -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: data: 'unsafe-inline' 'unsafe-eval'; script-src 'self' https: 'unsafe-inline' 'unsafe-eval' https://*.gstatic.com https://*.firebaseio.com; connect-src 'self' https: wss: http: ws:; frame-ancestors 'self';">
+  
   <!-- Geolocation permissions -->
-  <meta http-equiv="permissions-policy" content="geolocation=*">
+  <meta http-equiv="permissions-policy" content="geolocation=self">
+  
+  <!-- Cache control -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   
   <!-- iOS meta tags & icons -->
-  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="fichaje">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
@@ -32,29 +51,44 @@
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>fichaje</title>
+  <title>Fichaje</title>
   <link rel="manifest" href="manifest.json">
+
+  <script>
+    // The value below is injected by flutter build, do not touch.
+    var serviceWorkerVersion = null;
+  </script>
+  <!-- This script adds the flutter initialization JS code -->
+  <script src="flutter.js" defer></script>
 
   <script>
     // Función para validar las coordenadas
     function isValidCoordinate(value) {
-      return typeof value === 'number' && !isNaN(value) && isFinite(value) && value !== 0;
+      return typeof value === 'number' && !isNaN(value) && isFinite(value) && Math.abs(value) > 0.000001;
     }
 
     // Función para obtener la dirección desde OpenStreetMap
     async function getAddressFromCoordinates(latitude, longitude) {
       try {
         console.log('Iniciando obtención de dirección para:', { latitude, longitude });
-        const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&accept-language=es&zoom=18`;
+        const url = new URL('https://nominatim.openstreetmap.org/reverse');
+        url.searchParams.append('format', 'json');
+        url.searchParams.append('lat', latitude.toString());
+        url.searchParams.append('lon', longitude.toString());
+        url.searchParams.append('accept-language', 'es');
+        url.searchParams.append('zoom', '18');
+        url.searchParams.append('addressdetails', '1');
         
-        console.log('Realizando petición a:', url);
+        console.log('Realizando petición a:', url.toString());
         
-        const response = await fetch(url, {
+        const response = await fetch(url.toString(), {
           headers: {
             'User-Agent': 'Fichaje App/1.0',
-            'Accept': 'application/json'
+            'Accept': 'application/json',
+            'Origin': window.location.origin
           },
-          mode: 'cors'
+          mode: 'cors',
+          cache: 'no-cache'
         });
 
         console.log('Estado de la respuesta:', response.status);
@@ -67,46 +101,55 @@
         const data = await response.json();
         console.log('Respuesta completa de OpenStreetMap:', data);
         
-        // Intentar construir la dirección desde los componentes individuales primero
-        if (data.address) {
+        let address = null;
+        
+        // 1. Intentar con display_name primero
+        if (data.display_name) {
+          console.log('Usando display_name como dirección:', data.display_name);
+          address = data.display_name;
+        }
+        
+        // 2. Si no hay display_name, intentar con los componentes
+        if (!address && data.address) {
           console.log('Componentes de dirección encontrados:', data.address);
           const components = [];
           
-          const addressParts = {
-            road: 'Calle',
-            house_number: 'Número',
-            suburb: 'Barrio',
-            city: 'Ciudad',
-            town: 'Pueblo',
-            county: 'Municipio',
-            state: 'Provincia',
-            postcode: 'CP'
-          };
+          const addressParts = [
+            'road',
+            'house_number',
+            'suburb',
+            'neighbourhood',
+            'city',
+            'town',
+            'village',
+            'municipality',
+            'county',
+            'state',
+            'postcode'
+          ];
 
-          for (const [key, label] of Object.entries(addressParts)) {
+          for (const key of addressParts) {
             if (data.address[key]) {
-              components.push(`${data.address[key]}`);
+              components.push(data.address[key]);
             }
           }
           
           if (components.length > 0) {
-            const formattedAddress = components.join(', ');
-            console.log('Dirección formateada desde componentes:', formattedAddress);
-            return formattedAddress;
+            address = components.join(', ');
+            console.log('Dirección construida desde componentes:', address);
           }
         }
         
-        // Si no se pudo construir desde componentes, usar display_name
-        if (data.display_name) {
-          console.log('Usando display_name como dirección:', data.display_name);
-          return data.display_name;
+        // 3. Si no se pudo obtener la dirección, usar coordenadas
+        if (!address) {
+          address = `Lat: ${latitude.toFixed(6)}, Long: ${longitude.toFixed(6)}`;
+          console.log('Usando coordenadas como dirección:', address);
         }
 
-        console.warn('No se encontró información de dirección en la respuesta');
-        return `Coordenadas: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+        return address;
       } catch (error) {
         console.error('Error al obtener dirección:', error);
-        return `Coordenadas: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+        return `Lat: ${latitude.toFixed(6)}, Long: ${longitude.toFixed(6)}`;
       }
     }
 
@@ -179,28 +222,24 @@
             },
             {
               enableHighAccuracy: true,
-              timeout: 15000,
+              timeout: 20000,
               maximumAge: 0
             }
           );
         });
       }
 
-      function retry() {
-        return tryGetLocation()
-          .catch(error => {
-            retryCount++;
-            if (retryCount < maxRetries) {
-              console.log(`Reintentando obtener ubicación en ${retryDelay}ms...`);
-              return new Promise(resolve => setTimeout(resolve, retryDelay))
-                .then(retry);
-            }
-            throw error;
-          });
-      }
-
-      return retry();
-    }
+      return tryGetLocation()
+        .catch(error => {
+          retryCount++;
+          if (retryCount < maxRetries) {
+            console.log(`Reintentando obtener ubicación en ${retryDelay}ms...`);
+            return new Promise(resolve => setTimeout(resolve, retryDelay))
+              .then(() => window.getGeoLocation(maxRetries - 1, retryDelay));
+          }
+          throw error;
+        });
+    };
 
     // Verificar permisos al cargar
     window.addEventListener('load', function() {
@@ -221,6 +260,20 @@
   </script>
 </head>
 <body>
-  <script src="flutter_bootstrap.js" async></script>
+  <script>
+    window.addEventListener('load', function(ev) {
+      // Download main.dart.js
+      _flutter.loader.loadEntrypoint({
+        serviceWorker: {
+          serviceWorkerVersion: serviceWorkerVersion,
+        },
+        onEntrypointLoaded: function(engineInitializer) {
+          engineInitializer.initializeEngine().then(function(appRunner) {
+            appRunner.runApp();
+          });
+        }
+      });
+    });
+  </script>
 </body>
 </html>
