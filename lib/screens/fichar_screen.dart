@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'dart:convert';
+import 'dart:async';
 import 'package:http/http.dart' as http;
 import '../services/jornada_service.dart';
 import '../services/logger_service.dart';
@@ -25,14 +26,21 @@ class _FicharScreenState extends State<FicharScreen> {
   Future<String> _getAddressFromCoordinates(double latitude, double longitude) async {
     try {
       LoggerService.info('Intentando obtener dirección para coordenadas: $latitude, $longitude');
-      final url = 'https://nominatim.openstreetmap.org/reverse?format=json&lat=$latitude&lon=$longitude&accept-language=es';
+      final url = 'https://nominatim.openstreetmap.org/reverse?format=json&lat=$latitude&lon=$longitude&accept-language=es&zoom=18';
       LoggerService.info('URL de geocodificación: $url');
       
       final response = await http.get(
         Uri.parse(url),
         headers: {
           'User-Agent': 'Fichaje App (https://github.com/drpcons/drpcons-fichaje)',
-          'Accept': 'application/json'
+          'Accept': 'application/json',
+          'Referer': 'https://drpcons.github.io/drpcons-fichaje/'
+        },
+      ).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          LoggerService.error('Timeout al obtener dirección');
+          throw TimeoutException('Tiempo de espera agotado al obtener la dirección');
         },
       );
 
@@ -41,14 +49,38 @@ class _FicharScreenState extends State<FicharScreen> {
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        final address = data['display_name'] as String?;
-        if (address != null && address.isNotEmpty) {
-          LoggerService.info('Dirección obtenida: $address');
-          return address;
-        } else {
-          LoggerService.info('No se encontró dirección en la respuesta');
-          return _formatCoordinates(latitude, longitude);
+        
+        // Intentar obtener display_name primero
+        final displayName = data['display_name'] as String?;
+        if (displayName != null && displayName.isNotEmpty) {
+          LoggerService.info('Dirección obtenida (display_name): $displayName');
+          return displayName;
         }
+        
+        // Si no hay display_name, intentar construir desde componentes
+        final address = data['address'] as Map<String, dynamic>?;
+        if (address != null) {
+          final components = <String>[];
+          
+          if (address['road'] != null) components.add(address['road']);
+          if (address['house_number'] != null) components.add(address['house_number']);
+          if (address['suburb'] != null) components.add(address['suburb']);
+          if (address['city'] != null) {
+            components.add(address['city']);
+          } else if (address['town'] != null) {
+            components.add(address['town']);
+          }
+          if (address['postcode'] != null) components.add(address['postcode']);
+          
+          if (components.isNotEmpty) {
+            final formattedAddress = components.join(', ');
+            LoggerService.info('Dirección formateada desde componentes: $formattedAddress');
+            return formattedAddress;
+          }
+        }
+        
+        LoggerService.info('No se encontró información de dirección en la respuesta');
+        return _formatCoordinates(latitude, longitude);
       } else {
         LoggerService.error('Error en la respuesta del servidor: ${response.statusCode}');
         return _formatCoordinates(latitude, longitude);
