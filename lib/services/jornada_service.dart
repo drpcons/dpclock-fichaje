@@ -1,10 +1,10 @@
-import 'dart:html' as html;
-import 'dart:js' as js;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import '../models/registro_jornada.dart';
 import 'auth_service.dart';
 import 'logger_service.dart';
@@ -21,108 +21,32 @@ class JornadaService {
     return 'Lat: ${latitude.toStringAsFixed(6)}, Long: ${longitude.toStringAsFixed(6)}';
   }
 
-  Future<Map<String, dynamic>> _getCurrentLocation() async {
+  Future<String> _getAddressFromCoordinates(double latitude, double longitude) async {
     try {
       if (kIsWeb) {
-        try {
-          LoggerService.info('Intentando obtener ubicación en web');
-          dynamic result;
-          try {
-            result = await js.context.callMethod('getGeoLocation');
-            LoggerService.info('Respuesta de geolocalización web: ${result.toString()}');
-          } catch (e) {
-            LoggerService.error('Error al llamar a getGeoLocation', e);
-            throw 'Error al obtener ubicación: $e';
-          }
-
-          if (result == null) {
-            LoggerService.error('Resultado de geolocalización es null');
-            throw 'No se pudo obtener la ubicación';
-          }
-
-          // Intentar acceder a las propiedades de manera segura
-          dynamic latValue = result['latitude'];
-          dynamic longValue = result['longitude'];
-
-          LoggerService.info('Valores recibidos: lat=$latValue, long=$longValue');
-
-          // Convertir a double de manera segura
-          double? latitude = (latValue is num) ? latValue.toDouble() : null;
-          double? longitude = (longValue is num) ? longValue.toDouble() : null;
-
-          if (latitude == null || longitude == null || latitude == 0 || longitude == 0) {
-            LoggerService.error('Valores de coordenadas inválidos: lat=$latValue, long=$longValue');
-            throw 'Coordenadas inválidas o no disponibles';
-          }
-
-          String address = _formatCoordinates(latitude, longitude);
-          
-          try {
-            LoggerService.info('Intentando obtener dirección para coordenadas: lat=$latitude, long=$longitude');
-            final List<Placemark> placemarks = await placemarkFromCoordinates(
-              latitude,
-              longitude,
-            );
-
-            if (placemarks.isNotEmpty) {
-              final place = placemarks.first;
-              // Crear una lista de partes de la dirección, filtrando los valores nulos o vacíos
-              final List<String> addressParts = [];
-              
-              if (place.street?.isNotEmpty ?? false) addressParts.add(place.street!);
-              if (place.locality?.isNotEmpty ?? false) addressParts.add(place.locality!);
-              if (place.postalCode?.isNotEmpty ?? false) addressParts.add(place.postalCode!);
-              if (place.country?.isNotEmpty ?? false) addressParts.add(place.country!);
-              
-              if (addressParts.isNotEmpty) {
-                address = addressParts.join(', ');
-                LoggerService.info('Dirección obtenida exitosamente: $address');
-              } else {
-                LoggerService.info('No se pudo obtener una dirección legible, usando coordenadas');
-              }
-            } else {
-              LoggerService.info('No se encontraron placemarks para las coordenadas');
-            }
-          } catch (e) {
-            LoggerService.error('Error al obtener dirección, usando coordenadas como respaldo: $e');
-            // Continuamos con las coordenadas como dirección
-          }
-
-          LoggerService.info('Ubicación web obtenida: lat=$latitude, long=$longitude, address=$address');
-          return {
-            'latitude': latitude,
-            'longitude': longitude,
-            'address': address
-          };
-        } catch (e) {
-          LoggerService.error('Error al procesar ubicación web: $e');
-          throw 'Error al obtener ubicación: $e';
-        }
-      } else {
-        bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-        if (!serviceEnabled) {
-          throw 'Los servicios de ubicación están desactivados';
-        }
-
-        LocationPermission permission = await Geolocator.checkPermission();
-        if (permission == LocationPermission.denied) {
-          permission = await Geolocator.requestPermission();
-          if (permission == LocationPermission.denied) {
-            throw 'Los permisos de ubicación fueron denegados';
-          }
-        }
-
-        if (permission == LocationPermission.deniedForever) {
-          throw 'Los permisos de ubicación están permanentemente denegados';
-        }
-
-        final position = await Geolocator.getCurrentPosition();
-        final List<Placemark> placemarks = await placemarkFromCoordinates(
-          position.latitude,
-          position.longitude,
+        LoggerService.info('Obteniendo dirección usando OpenStreetMap en web');
+        final url = 'https://nominatim.openstreetmap.org/reverse?format=json&lat=$latitude&lon=$longitude&accept-language=es';
+        
+        final response = await http.get(
+          Uri.parse(url),
+          headers: {
+            'User-Agent': 'Fichaje App (https://github.com/drpcons/drpcons-fichaje)',
+            'Accept': 'application/json'
+          },
         );
 
-        String address = _formatCoordinates(position.latitude, position.longitude);
+        if (response.statusCode == 200) {
+          final data = json.decode(response.body);
+          final address = data['display_name'] as String?;
+          if (address != null && address.isNotEmpty) {
+            LoggerService.info('Dirección web obtenida: $address');
+            return address;
+          }
+        }
+      } else {
+        LoggerService.info('Obteniendo dirección usando geocoding en móvil');
+        final List<Placemark> placemarks = await placemarkFromCoordinates(latitude, longitude);
+        
         if (placemarks.isNotEmpty) {
           final place = placemarks.first;
           final parts = [
@@ -133,23 +57,58 @@ class JornadaService {
           ].where((part) => part != null && part.isNotEmpty).toList();
           
           if (parts.isNotEmpty) {
-            address = parts.join(', ');
+            final address = parts.join(', ');
+            LoggerService.info('Dirección móvil obtenida: $address');
+            return address;
           }
         }
-
-        return {
-          'latitude': position.latitude,
-          'longitude': position.longitude,
-          'address': address
-        };
       }
+      
+      // Si no se pudo obtener la dirección, devolver las coordenadas formateadas
+      return _formatCoordinates(latitude, longitude);
+    } catch (e) {
+      LoggerService.error('Error al obtener dirección: $e');
+      return _formatCoordinates(latitude, longitude);
+    }
+  }
+
+  Future<Map<String, dynamic>> _getCurrentLocation() async {
+    try {
+      // Verificar si los servicios de ubicación están habilitados
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        throw 'Los servicios de ubicación están desactivados';
+      }
+
+      // Verificar permisos de ubicación
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          throw 'Los permisos de ubicación fueron denegados';
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        throw 'Los permisos de ubicación están permanentemente denegados';
+      }
+
+      // Obtener la posición actual
+      final position = await Geolocator.getCurrentPosition();
+      final address = await _getAddressFromCoordinates(position.latitude, position.longitude);
+
+      return {
+        'latitude': position.latitude,
+        'longitude': position.longitude,
+        'address': address
+      };
     } catch (e) {
       LoggerService.error('Error general al obtener la ubicación: $e');
       throw 'Error al obtener ubicación: $e';
     }
   }
 
-  Future<void> registrarFichaje(String tipo) async {
+  Future<void> registrarFichaje(String tipo, [Map<String, dynamic>? locationDataFromScreen]) async {
     try {
       final user = _auth.currentUser;
       if (user == null) throw Exception('Usuario no autenticado');
@@ -159,29 +118,64 @@ class JornadaService {
 
       Map<String, dynamic> locationData;
       try {
-        locationData = await _getCurrentLocation();
-      } catch (e) {
-        LoggerService.error('Error al obtener ubicación para fichaje', e);
-        locationData = {
-          'latitude': 0.0,
-          'longitude': 0.0,
-          'address': 'Error al obtener ubicación'
+        // Si se proporcionan datos de ubicación desde la pantalla, usarlos
+        if (locationDataFromScreen != null) {
+          LoggerService.info('Usando datos de ubicación de la pantalla: $locationDataFromScreen');
+          
+          // Verificar que la dirección no sea nula
+          if (locationDataFromScreen['address'] == null) {
+            throw Exception('La dirección es nula');
+          }
+          
+          locationData = {
+            'latitude': locationDataFromScreen['latitude'] as double,
+            'longitude': locationDataFromScreen['longitude'] as double,
+            'address': locationDataFromScreen['address'] as String
+          };
+          
+          LoggerService.info('Datos de ubicación procesados: $locationData');
+        } else {
+          // Si no, obtener la ubicación
+          locationData = await _getCurrentLocation();
+          LoggerService.info('Ubicación obtenida del servicio: $locationData');
+        }
+
+        // Verificación final de los datos
+        if (locationData['address'] == null || locationData['address'].toString().isEmpty) {
+          throw Exception('La dirección es nula o vacía');
+        }
+
+        final registro = {
+          'tipo': tipo,
+          'fecha': FieldValue.serverTimestamp(),
+          'userId': user.uid,
+          'userEmail': user.email,
+          'userName': '${userData['nombre'] ?? ''} ${userData['apellidos'] ?? ''}'.trim(),
+          'latitude': locationData['latitude'],
+          'longitude': locationData['longitude'],
+          'locationAddress': locationData['address']
         };
+
+        LoggerService.info('Guardando registro con datos: $registro');
+        
+        // Guardar en Firestore
+        final docRef = await _firestore.collection('registros').add(registro);
+        
+        // Verificar que se guardó correctamente
+        final savedDoc = await docRef.get();
+        final savedData = savedDoc.data();
+        LoggerService.info('Registro guardado en Firestore: $savedData');
+        
+        final locationAddress = savedData?['locationAddress'] as String?;
+        if (locationAddress == null || locationAddress.isEmpty) {
+          LoggerService.error('La dirección no se guardó correctamente en Firestore');
+        }
+
+        LoggerService.info('Registro de fichaje creado exitosamente: $tipo');
+      } catch (e) {
+        LoggerService.error('Error al obtener/procesar ubicación para fichaje', e);
+        throw Exception('Error al procesar la ubicación: $e');
       }
-
-      final registro = {
-        'tipo': tipo,
-        'fecha': FieldValue.serverTimestamp(),
-        'userId': user.uid,
-        'userEmail': user.email,
-        'userName': '${userData['nombre'] ?? ''} ${userData['apellidos'] ?? ''}'.trim(),
-        'latitude': locationData['latitude'],
-        'longitude': locationData['longitude'],
-        'locationAddress': locationData['address'],
-      };
-
-      await _firestore.collection('registros').add(registro);
-      LoggerService.info('Registro de fichaje creado exitosamente: $tipo');
     } catch (e) {
       LoggerService.error('Error al registrar fichaje', e);
       throw Exception('Error al registrar el fichaje: $e');

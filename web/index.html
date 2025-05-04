@@ -41,19 +41,51 @@
       return typeof value === 'number' && !isNaN(value) && isFinite(value) && value !== 0;
     }
 
+    // Función para obtener la dirección desde OpenStreetMap
+    async function getAddressFromCoordinates(latitude, longitude) {
+      try {
+        const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&accept-language=es`;
+        const response = await fetch(url, {
+          headers: {
+            'User-Agent': 'Fichaje App (https://github.com/drpcons/drpcons-fichaje)',
+            'Accept': 'application/json'
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error(`Error HTTP: ${response.status}`);
+        }
+
+        const data = await response.json();
+        if (data.display_name) {
+          console.log('Dirección obtenida:', data.display_name);
+          return data.display_name;
+        } else {
+          throw new Error('No se encontró dirección');
+        }
+      } catch (error) {
+        console.error('Error al obtener dirección:', error);
+        return `Lat: ${latitude.toFixed(6)}, Long: ${longitude.toFixed(6)}`;
+      }
+    }
+
     // Función para obtener la ubicación con reintentos
     window.getGeoLocation = function(maxRetries = 3, retryDelay = 2000) {
+      console.log('Iniciando getGeoLocation con maxRetries:', maxRetries);
       let retryCount = 0;
 
       function tryGetLocation() {
+        console.log('Intentando obtener ubicación, intento:', retryCount + 1);
         return new Promise((resolve, reject) => {
           if (!navigator.geolocation) {
+            console.error('Geolocalización no soportada en este navegador');
             reject(new Error('Geolocalización no soportada en este navegador'));
             return;
           }
 
+          console.log('Solicitando permisos de geolocalización...');
           navigator.geolocation.getCurrentPosition(
-            (position) => {
+            async (position) => {
               const latitude = position.coords.latitude;
               const longitude = position.coords.longitude;
               
@@ -65,13 +97,25 @@
                 return;
               }
 
-              const result = {
-                latitude: latitude,
-                longitude: longitude
-              };
+              try {
+                const address = await getAddressFromCoordinates(latitude, longitude);
+                const result = {
+                  latitude: latitude,
+                  longitude: longitude,
+                  address: address
+                };
 
-              console.log('Ubicación obtenida exitosamente:', result);
-              resolve(result);
+                console.log('Ubicación obtenida exitosamente:', result);
+                resolve(result);
+              } catch (error) {
+                console.error('Error al obtener dirección:', error);
+                const result = {
+                  latitude: latitude,
+                  longitude: longitude,
+                  address: `Lat: ${latitude.toFixed(6)}, Long: ${longitude.toFixed(6)}`
+                };
+                resolve(result);
+              }
             },
             (error) => {
               let errorMessage;

@@ -43,17 +43,15 @@ class _FicharScreenState extends State<FicharScreen> {
           return address;
         } else {
           LoggerService.info('No se encontró dirección en la respuesta');
+          return _formatCoordinates(latitude, longitude);
         }
       } else {
         LoggerService.error('Error en la respuesta del servidor: ${response.statusCode}');
+        return _formatCoordinates(latitude, longitude);
       }
-      
-      final coordsStr = 'Lat: ${latitude.toStringAsFixed(6)}, Long: ${longitude.toStringAsFixed(6)}';
-      LoggerService.info('Usando coordenadas como respaldo: $coordsStr');
-      return coordsStr;
     } catch (e) {
       LoggerService.error('Error al obtener dirección: $e');
-      return 'Lat: ${latitude.toStringAsFixed(6)}, Long: ${longitude.toStringAsFixed(6)}';
+      return _formatCoordinates(latitude, longitude);
     }
   }
 
@@ -66,13 +64,18 @@ class _FicharScreenState extends State<FicharScreen> {
 
     try {
       final position = await Geolocator.getCurrentPosition();
+      LoggerService.info('Posición obtenida: ${position.latitude}, ${position.longitude}');
+      
       final address = await _getAddressFromCoordinates(position.latitude, position.longitude);
+      LoggerService.info('Dirección obtenida en _updateLocation: $address');
 
       setState(() {
         _currentPosition = position;
         _currentAddress = address;
         _isLoading = false;
       });
+      
+      LoggerService.info('Estado actualizado - Dirección actual: $_currentAddress');
     } catch (e) {
       LoggerService.error('Error al obtener ubicación: $e');
       setState(() {
@@ -178,7 +181,23 @@ class _FicharScreenState extends State<FicharScreen> {
                       ),
                       onPressed: _isLoading ? null : () async {
                         try {
-                          await JornadaService().registrarFichaje('Entrada');
+                          if (_currentPosition == null) {
+                            throw Exception('No hay ubicación disponible');
+                          }
+
+                          if (_currentAddress == null) {
+                            throw Exception('La dirección no está disponible');
+                          }
+                          
+                          final locationData = {
+                            'latitude': _currentPosition!.latitude,
+                            'longitude': _currentPosition!.longitude,
+                            'address': _currentAddress
+                          };
+
+                          LoggerService.info('Enviando datos de ubicación para fichaje: $locationData');
+                          
+                          await JornadaService().registrarFichaje('ENTRADA', locationData);
                           if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(content: Text('Entrada registrada correctamente')),
@@ -206,6 +225,64 @@ class _FicharScreenState extends State<FicharScreen> {
                   Expanded(
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      onPressed: _isLoading ? null : () async {
+                        try {
+                          if (_currentPosition == null) {
+                            throw Exception('No hay ubicación disponible');
+                          }
+
+                          if (_currentAddress == null) {
+                            throw Exception('La dirección no está disponible');
+                          }
+                          
+                          final locationData = {
+                            'latitude': _currentPosition!.latitude,
+                            'longitude': _currentPosition!.longitude,
+                            'address': _currentAddress
+                          };
+
+                          LoggerService.info('Enviando datos de ubicación para fichaje: $locationData');
+                          
+                          await JornadaService().registrarFichaje('PAUSA', locationData);
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Pausa registrada correctamente')),
+                            );
+                          }
+                        } catch (e) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Error al registrar pausa: $e')),
+                            );
+                          }
+                        }
+                      },
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: const [
+                          Icon(Icons.pause, color: Colors.white),
+                          SizedBox(width: 8),
+                          Text(
+                            'Pausa',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.red,
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
@@ -214,7 +291,23 @@ class _FicharScreenState extends State<FicharScreen> {
                       ),
                       onPressed: _isLoading ? null : () async {
                         try {
-                          await JornadaService().registrarFichaje('Salida');
+                          if (_currentPosition == null) {
+                            throw Exception('No hay ubicación disponible');
+                          }
+
+                          if (_currentAddress == null) {
+                            throw Exception('La dirección no está disponible');
+                          }
+                          
+                          final locationData = {
+                            'latitude': _currentPosition!.latitude,
+                            'longitude': _currentPosition!.longitude,
+                            'address': _currentAddress
+                          };
+
+                          LoggerService.info('Enviando datos de ubicación para fichaje: $locationData');
+                          
+                          await JornadaService().registrarFichaje('SALIDA', locationData);
                           if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(content: Text('Salida registrada correctamente')),
@@ -228,13 +321,19 @@ class _FicharScreenState extends State<FicharScreen> {
                           }
                         }
                       },
-                      child: const Text(
-                        'Salida',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: const [
+                          Icon(Icons.logout, color: Colors.white),
+                          SizedBox(width: 8),
+                          Text(
+                            'Salida',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -245,5 +344,9 @@ class _FicharScreenState extends State<FicharScreen> {
         ),
       ),
     );
+  }
+
+  String _formatCoordinates(double latitude, double longitude) {
+    return 'Lat: ${latitude.toStringAsFixed(6)}, Long: ${longitude.toStringAsFixed(6)}';
   }
 } 

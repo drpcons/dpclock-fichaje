@@ -36,6 +36,27 @@ class RegistroJornada {
     }
 
     try {
+      // Procesar la dirección
+      String? locationAddress = data['locationAddress'] as String?;
+      if (locationAddress != null && locationAddress.isEmpty) {
+        locationAddress = null;
+      }
+
+      // Procesar coordenadas
+      double? latitude;
+      if (data['latitude'] is int) {
+        latitude = (data['latitude'] as int).toDouble();
+      } else if (data['latitude'] is double) {
+        latitude = data['latitude'] as double;
+      }
+
+      double? longitude;
+      if (data['longitude'] is int) {
+        longitude = (data['longitude'] as int).toDouble();
+      } else if (data['longitude'] is double) {
+        longitude = data['longitude'] as double;
+      }
+
       return RegistroJornada(
         id: id,
         tipo: data['tipo'] as String? ?? '',
@@ -43,13 +64,9 @@ class RegistroJornada {
         userId: data['userId'] as String? ?? '',
         userEmail: data['userEmail'] as String? ?? '',
         userName: data['userName'] as String? ?? '',
-        latitude: (data['latitude'] is int) 
-          ? (data['latitude'] as int).toDouble()
-          : data['latitude'] as double?,
-        longitude: (data['longitude'] is int)
-          ? (data['longitude'] as int).toDouble()
-          : data['longitude'] as double?,
-        locationAddress: data['locationAddress'] as String?,
+        latitude: latitude,
+        longitude: longitude,
+        locationAddress: locationAddress,
       );
     } catch (e) {
       throw Exception('Error al convertir documento: $e\nDatos: $data');

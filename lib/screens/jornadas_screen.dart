@@ -43,7 +43,12 @@ class _JornadasScreenState extends State<JornadasScreen> {
   }
 
   Widget _buildLocationInfo(RegistroJornada registro) {
+    LoggerService.info('Construyendo información de ubicación para registro: ${registro.id}');
+    LoggerService.info('Dirección: ${registro.locationAddress}');
+    LoggerService.info('Coordenadas: ${registro.latitude}, ${registro.longitude}');
+
     if (registro.locationAddress != null && registro.locationAddress!.isNotEmpty) {
+      LoggerService.info('Mostrando dirección: ${registro.locationAddress}');
       return Text(
         registro.locationAddress!,
         style: const TextStyle(
@@ -54,14 +59,18 @@ class _JornadasScreenState extends State<JornadasScreen> {
         overflow: TextOverflow.ellipsis,
       );
     } else if (registro.latitude != null && registro.longitude != null) {
+      final coordText = 'Lat: ${registro.latitude!.toStringAsFixed(6)}, Long: ${registro.longitude!.toStringAsFixed(6)}';
+      LoggerService.info('Mostrando coordenadas: $coordText');
       return Text(
-        '${registro.latitude!.toStringAsFixed(6)}, ${registro.longitude!.toStringAsFixed(6)}',
+        coordText,
         style: const TextStyle(
           fontSize: 12,
           color: Colors.grey,
         ),
       );
     }
+    
+    LoggerService.info('No hay información de ubicación disponible');
     return const Text(
       'Sin ubicación',
       style: TextStyle(
@@ -355,22 +364,18 @@ class _JornadasScreenState extends State<JornadasScreen> {
       // Definir estilos
       var headerStyle = CellStyle(
         bold: true,
-        backgroundColorHex: '#CCCCCC',
         horizontalAlign: HorizontalAlign.Center,
       );
       
       var entradaStyle = CellStyle(
-        backgroundColorHex: '#E8F5E9',
         horizontalAlign: HorizontalAlign.Left,
       );
       
       var pausaStyle = CellStyle(
-        backgroundColorHex: '#FFF3E0',
         horizontalAlign: HorizontalAlign.Left,
       );
       
       var salidaStyle = CellStyle(
-        backgroundColorHex: '#FFEBEE',
         horizontalAlign: HorizontalAlign.Left,
       );
 
@@ -380,37 +385,37 @@ class _JornadasScreenState extends State<JornadasScreen> {
       if (_filterTipo != 'TODOS' || _filterNombre.isNotEmpty || _filterEmail.isNotEmpty || 
           _filterUbicacion.isNotEmpty || _filterFechaInicio != null) {
         sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex))
-          ..value = 'Filtros Aplicados:'
+          ..value = TextCellValue('Filtros Aplicados:')
           ..cellStyle = headerStyle;
         rowIndex++;
 
         if (_filterTipo != 'TODOS') {
           sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex))
-            .value = 'Tipo: $_filterTipo';
+            .value = TextCellValue('Tipo: $_filterTipo');
           rowIndex++;
         }
         
         if (_filterNombre.isNotEmpty) {
           sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex))
-            .value = 'Nombre contiene: $_filterNombre';
+            .value = TextCellValue('Nombre contiene: $_filterNombre');
           rowIndex++;
         }
         
         if (_filterEmail.isNotEmpty) {
           sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex))
-            .value = 'Email contiene: $_filterEmail';
+            .value = TextCellValue('Email contiene: $_filterEmail');
           rowIndex++;
         }
         
         if (_filterUbicacion.isNotEmpty) {
           sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex))
-            .value = 'Ubicación contiene: $_filterUbicacion';
+            .value = TextCellValue('Ubicación contiene: $_filterUbicacion');
           rowIndex++;
         }
         
         if (_filterFechaInicio != null && _filterFechaFin != null) {
           sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex))
-            .value = 'Rango de fechas: ${dateFormat.format(_filterFechaInicio!)} - ${dateFormat.format(_filterFechaFin!)}';
+            .value = TextCellValue('Rango de fechas: ${dateFormat.format(_filterFechaInicio!)} - ${dateFormat.format(_filterFechaFin!)}');
           rowIndex++;
         }
 
@@ -422,7 +427,7 @@ class _JornadasScreenState extends State<JornadasScreen> {
       final headers = ['Tipo', 'Fecha', 'Nombre', 'Email', 'Ubicación'];
       for (var i = 0; i < headers.length; i++) {
         sheet.cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: rowIndex))
-          ..value = headers[i]
+          ..value = TextCellValue(headers[i])
           ..cellStyle = headerStyle;
       }
       rowIndex++;
@@ -445,30 +450,30 @@ class _JornadasScreenState extends State<JornadasScreen> {
 
         // Agregar datos con el estilo correspondiente
         sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex))
-          ..value = registro.tipo
+          ..value = TextCellValue(registro.tipo)
           ..cellStyle = style;
         sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex))
-          ..value = dateFormat.format(registro.fecha)
+          ..value = TextCellValue(dateFormat.format(registro.fecha))
           ..cellStyle = style;
         sheet.cell(CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: rowIndex))
-          ..value = registro.userName
+          ..value = TextCellValue(registro.userName)
           ..cellStyle = style;
         sheet.cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: rowIndex))
-          ..value = registro.userEmail
+          ..value = TextCellValue(registro.userEmail)
           ..cellStyle = style;
         sheet.cell(CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: rowIndex))
-          ..value = registro.locationAddress ?? 'Sin ubicación'
+          ..value = TextCellValue(registro.locationAddress ?? 'Sin ubicación')
           ..cellStyle = style;
         
         rowIndex++;
       }
 
       // Ajustar ancho de columnas
-      sheet.setColWidth(0, 15.0); // Tipo
-      sheet.setColWidth(1, 25.0); // Fecha
-      sheet.setColWidth(2, 20.0); // Nombre
-      sheet.setColWidth(3, 30.0); // Email
-      sheet.setColWidth(4, 40.0); // Ubicación
+      sheet.setColumnWidth(0, 15.0); // Tipo
+      sheet.setColumnWidth(1, 25.0); // Fecha
+      sheet.setColumnWidth(2, 20.0); // Nombre
+      sheet.setColumnWidth(3, 30.0); // Email
+      sheet.setColumnWidth(4, 40.0); // Ubicación
 
       // Intentar obtener el directorio de almacenamiento
       Directory? directory;

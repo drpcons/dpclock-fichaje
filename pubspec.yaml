@@ -36,9 +36,9 @@ dependencies:
   cupertino_icons: ^1.0.2
 
   # Firebase
-  firebase_core: ^2.25.4
-  firebase_auth: ^4.17.4
-  cloud_firestore: ^4.15.4
+  firebase_core: ^2.24.2
+  firebase_auth: ^4.15.3
+  cloud_firestore: ^4.13.6
   
   # State Management
   provider: ^6.1.1
@@ -47,18 +47,18 @@ dependencies:
   intl: ^0.19.0
   flutter_localizations:
     sdk: flutter
-  geolocator: ^12.0.0
-  geocoding: ^3.0.0
+  geolocator: ^10.1.0
+  geocoding: ^2.1.1
 
   # File Management & Sharing
-  path_provider: ^2.1.2
-  share_plus: ^8.0.0
+  path_provider: ^2.1.1
+  share_plus: ^7.2.1
 
   # Excel
-  excel: ^2.1.0
+  excel: ^4.0.0
 
   # Added from the code block
-  http: ^1.1.0
+  http: ^1.1.2
 
 dev_dependencies:
   flutter_test:
