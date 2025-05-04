@@ -145,6 +145,8 @@ class _FicharScreenState extends State<FicharScreen> {
       LoggerService.info('Solicitando permisos de ubicación...');
       
       if (kIsWeb) {
+        LoggerService.info('Ejecutando en versión web...');
+        
         // En web, primero verificar si la geolocalización está disponible
         if (!await Geolocator.isLocationServiceEnabled()) {
           throw Exception('Los servicios de ubicación no están disponibles en el navegador');

@@ -32,7 +32,7 @@
   </script>
   
   <!-- Seguridad -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: data: 'unsafe-inline' 'unsafe-eval'; script-src 'self' https: 'unsafe-inline' 'unsafe-eval' https://*.gstatic.com https://*.firebaseio.com; connect-src 'self' https: wss: http: ws:; frame-ancestors 'self';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: data: 'unsafe-inline' 'unsafe-eval'; script-src 'self' https: 'unsafe-inline' 'unsafe-eval' https://*.gstatic.com https://*.firebaseio.com https://*.openstreetmap.org; connect-src 'self' https: wss: http: ws: https://*.openstreetmap.org; frame-ancestors 'self';">
   
   <!-- Geolocation permissions -->
   <meta http-equiv="permissions-policy" content="geolocation=self">
@@ -67,106 +67,90 @@
       return typeof value === 'number' && !isNaN(value) && isFinite(value) && Math.abs(value) > 0.000001;
     }
 
-    // Función para obtener la dirección desde OpenStreetMap
-    async function getAddressFromCoordinates(latitude, longitude) {
-      try {
-        console.log('Iniciando obtención de dirección para:', { latitude, longitude });
-        const url = new URL('https://nominatim.openstreetmap.org/reverse');
-        url.searchParams.append('format', 'json');
-        url.searchParams.append('lat', latitude.toString());
-        url.searchParams.append('lon', longitude.toString());
-        url.searchParams.append('accept-language', 'es');
-        url.searchParams.append('zoom', '18');
-        url.searchParams.append('addressdetails', '1');
-        
-        console.log('Realizando petición a:', url.toString());
-        
-        const response = await fetch(url.toString(), {
-          headers: {
-            'User-Agent': 'Fichaje App/1.0',
-            'Accept': 'application/json',
-            'Origin': window.location.origin
-          },
-          mode: 'cors',
-          cache: 'no-cache'
-        });
-
-        console.log('Estado de la respuesta:', response.status);
-        
-        if (!response.ok) {
-          console.error('Error en la respuesta:', response.status, response.statusText);
-          throw new Error(`Error HTTP: ${response.status}`);
-        }
-
-        const data = await response.json();
-        console.log('Respuesta completa de OpenStreetMap:', data);
-        
-        let address = null;
-        
-        // 1. Intentar con display_name primero
-        if (data.display_name) {
-          console.log('Usando display_name como dirección:', data.display_name);
-          address = data.display_name;
-        }
-        
-        // 2. Si no hay display_name, intentar con los componentes
-        if (!address && data.address) {
-          console.log('Componentes de dirección encontrados:', data.address);
-          const components = [];
+    // Función para obtener la dirección desde OpenStreetMap con reintentos
+    async function getAddressFromCoordinates(latitude, longitude, maxRetries = 3) {
+      let retryCount = 0;
+      
+      async function tryGetAddress() {
+        try {
+          console.log('Iniciando obtención de dirección para:', { latitude, longitude });
+          const url = new URL('https://nominatim.openstreetmap.org/reverse');
+          url.searchParams.append('format', 'json');
+          url.searchParams.append('lat', latitude.toString());
+          url.searchParams.append('lon', longitude.toString());
+          url.searchParams.append('accept-language', 'es');
+          url.searchParams.append('zoom', '18');
+          url.searchParams.append('addressdetails', '1');
           
-          const addressParts = [
-            'road',
-            'house_number',
-            'suburb',
-            'neighbourhood',
-            'city',
-            'town',
-            'village',
-            'municipality',
-            'county',
-            'state',
-            'postcode'
-          ];
+          console.log('Realizando petición a:', url.toString());
+          
+          const response = await fetch(url.toString(), {
+            headers: {
+              'User-Agent': 'Fichaje App/1.0',
+              'Accept': 'application/json',
+              'Origin': 'https://drpcons.github.io'
+            },
+            mode: 'cors',
+            cache: 'no-cache'
+          });
 
-          for (const key of addressParts) {
-            if (data.address[key]) {
-              components.push(data.address[key]);
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          console.log('Respuesta recibida:', data);
+
+          if (data.display_name) {
+            return data.display_name;
+          } else if (data.address) {
+            const components = [];
+            if (data.address.road) components.push(data.address.road);
+            if (data.address.house_number) components.push(data.address.house_number);
+            if (data.address.suburb) components.push(data.address.suburb);
+            if (data.address.city || data.address.town) components.push(data.address.city || data.address.town);
+            
+            if (components.length > 0) {
+              return components.join(', ');
             }
           }
           
-          if (components.length > 0) {
-            address = components.join(', ');
-            console.log('Dirección construida desde componentes:', address);
+          throw new Error('No se pudo obtener una dirección válida');
+        } catch (error) {
+          console.error(`Error al obtener dirección (intento ${retryCount + 1}/${maxRetries}):`, error);
+          
+          if (retryCount < maxRetries - 1) {
+            retryCount++;
+            console.log(`Reintentando en 2 segundos...`);
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            return tryGetAddress();
           }
+          
+          throw error;
         }
-        
-        // 3. Si no se pudo obtener la dirección, usar coordenadas
-        if (!address) {
-          address = `Lat: ${latitude.toFixed(6)}, Long: ${longitude.toFixed(6)}`;
-          console.log('Usando coordenadas como dirección:', address);
-        }
+      }
 
-        return address;
+      try {
+        return await tryGetAddress();
       } catch (error) {
-        console.error('Error al obtener dirección:', error);
+        console.error('Error final al obtener dirección:', error);
         return `Lat: ${latitude.toFixed(6)}, Long: ${longitude.toFixed(6)}`;
       }
     }
 
     // Función para obtener la ubicación con reintentos
-    window.getGeoLocation = function(maxRetries = 3, retryDelay = 2000) {
+    window.getGeoLocation = async function(maxRetries = 3, retryDelay = 2000) {
       console.log('Iniciando getGeoLocation con maxRetries:', maxRetries);
       let retryCount = 0;
 
-      function tryGetLocation() {
+      async function tryGetLocation() {
         console.log('Intentando obtener ubicación, intento:', retryCount + 1);
-        return new Promise((resolve, reject) => {
-          if (!navigator.geolocation) {
-            console.error('Geolocalización no soportada en este navegador');
-            reject(new Error('Geolocalización no soportada en este navegador'));
-            return;
-          }
+        
+        if (!navigator.geolocation) {
+          throw new Error('Geolocalización no soportada en este navegador');
+        }
 
+        return new Promise((resolve, reject) => {
           console.log('Solicitando permisos de geolocalización...');
           navigator.geolocation.getCurrentPosition(
             async (position) => {
@@ -176,29 +160,24 @@
               console.log('Coordenadas recibidas:', { latitude, longitude });
 
               if (!isValidCoordinate(latitude) || !isValidCoordinate(longitude)) {
-                console.error('Coordenadas inválidas:', { latitude, longitude });
                 reject(new Error('Coordenadas inválidas recibidas del navegador'));
                 return;
               }
 
               try {
                 const address = await getAddressFromCoordinates(latitude, longitude);
-                const result = {
+                resolve({
                   latitude: latitude,
                   longitude: longitude,
                   address: address
-                };
-
-                console.log('Ubicación obtenida exitosamente:', result);
-                resolve(result);
+                });
               } catch (error) {
                 console.error('Error al obtener dirección:', error);
-                const result = {
+                resolve({
                   latitude: latitude,
                   longitude: longitude,
                   address: `Lat: ${latitude.toFixed(6)}, Long: ${longitude.toFixed(6)}`
-                };
-                resolve(result);
+                });
               }
             },
             (error) => {
@@ -217,7 +196,6 @@
                   errorMessage = 'Error desconocido al obtener la ubicación';
                   break;
               }
-              console.error(`Error de geolocalización (intento ${retryCount + 1}/${maxRetries}):`, errorMessage);
               reject(new Error(errorMessage));
             },
             {
@@ -229,16 +207,21 @@
         });
       }
 
-      return tryGetLocation()
-        .catch(error => {
+      while (retryCount < maxRetries) {
+        try {
+          return await tryGetLocation();
+        } catch (error) {
+          console.error(`Error en intento ${retryCount + 1}/${maxRetries}:`, error);
           retryCount++;
+          
           if (retryCount < maxRetries) {
-            console.log(`Reintentando obtener ubicación en ${retryDelay}ms...`);
-            return new Promise(resolve => setTimeout(resolve, retryDelay))
-              .then(() => window.getGeoLocation(maxRetries - 1, retryDelay));
+            console.log(`Esperando ${retryDelay}ms antes del siguiente intento...`);
+            await new Promise(resolve => setTimeout(resolve, retryDelay));
+          } else {
+            throw error;
           }
-          throw error;
-        });
+        }
+      }
     };
 
     // Verificar permisos al cargar
