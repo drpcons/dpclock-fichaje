@@ -12,6 +12,7 @@ import '../services/logger_service.dart';
 import '../utils/platform_utils.dart';
 // ignore: avoid_web_libraries_in_flutter
 import 'dart:html' as html;
+import 'package:flutter/foundation.dart';
 import 'dart:convert';
 
 const bool isWeb = bool.fromEnvironment('dart.library.js_util');
@@ -412,9 +413,14 @@ class _JornadasScreenState extends State<JornadasScreen> {
       // Convertir a bytes
       final bytes = csvContent.toString().codeUnits;
 
-      if (isWeb) {
+      if (kIsWeb) {
         // En la web, usar el método de descarga web
-        await downloadExcelWeb(bytes, fileName);
+        final content = base64Encode(bytes);
+        final anchor = html.AnchorElement(
+          href: 'data:text/csv;charset=utf-8;base64,$content'
+        )
+          ..setAttribute('download', fileName)
+          ..click();
       } else {
         // En móvil, usar el método de compartir
         final tempDir = await getTemporaryDirectory();

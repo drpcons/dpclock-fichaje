@@ -1,9 +1,8 @@
-// ignore: avoid_web_libraries_in_flutter
-import 'dart:html' as html;
+import 'package:flutter/foundation.dart';
 
 String getOrigin() {
-  if (const bool.fromEnvironment('dart.library.js_util')) {
-    return html.window.location.origin ?? 'https://drpcons.github.io';
+  if (kIsWeb) {
+    return 'https://drpcons.github.io';
   }
   return 'app://fichaje';
 } 
