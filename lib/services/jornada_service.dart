@@ -58,6 +58,7 @@ class JornadaService {
           String address = _formatCoordinates(latitude, longitude);
           
           try {
+            LoggerService.info('Intentando obtener dirección para coordenadas: lat=$latitude, long=$longitude');
             final List<Placemark> placemarks = await placemarkFromCoordinates(
               latitude,
               longitude,
@@ -65,19 +66,25 @@ class JornadaService {
 
             if (placemarks.isNotEmpty) {
               final place = placemarks.first;
-              final parts = [
-                place.street,
-                place.locality,
-                place.postalCode,
-                place.country,
-              ].where((part) => part != null && part.isNotEmpty).toList();
+              // Crear una lista de partes de la dirección, filtrando los valores nulos o vacíos
+              final List<String> addressParts = [];
               
-              if (parts.isNotEmpty) {
-                address = parts.join(', ');
+              if (place.street?.isNotEmpty ?? false) addressParts.add(place.street!);
+              if (place.locality?.isNotEmpty ?? false) addressParts.add(place.locality!);
+              if (place.postalCode?.isNotEmpty ?? false) addressParts.add(place.postalCode!);
+              if (place.country?.isNotEmpty ?? false) addressParts.add(place.country!);
+              
+              if (addressParts.isNotEmpty) {
+                address = addressParts.join(', ');
+                LoggerService.info('Dirección obtenida exitosamente: $address');
+              } else {
+                LoggerService.info('No se pudo obtener una dirección legible, usando coordenadas');
               }
+            } else {
+              LoggerService.info('No se encontraron placemarks para las coordenadas');
             }
           } catch (e) {
-            LoggerService.error('Error al obtener dirección, usando coordenadas como respaldo', e);
+            LoggerService.error('Error al obtener dirección, usando coordenadas como respaldo: $e');
             // Continuamos con las coordenadas como dirección
           }
 

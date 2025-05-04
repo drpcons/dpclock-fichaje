@@ -50623,6 +50623,8 @@ if(i==null||h==null||J.e(i,0)||J.e(h,0)){A.m(k)
 A.m(j)
 throw A.d("Coordenadas inv\xe1lidas o no disponibles")}g=n.aaX(i,h)
 p=17
+A.m(i)
+A.m(h)
 s=20
 return A.M(A.aVh(i,h),$async$ur)
 case 20:f=a5
@@ -50632,6 +50634,7 @@ break
 case 17:p=16
 a1=o.pop()
 e=A.a7(a1)
+A.m(e)
 s=19
 break
 case 16:s=8
