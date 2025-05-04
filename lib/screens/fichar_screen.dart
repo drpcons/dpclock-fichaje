@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import '../services/jornada_service.dart';
+import '../services/logger_service.dart';
 
 class FicharScreen extends StatefulWidget {
   const FicharScreen({super.key});
@@ -28,19 +29,35 @@ class _FicharScreenState extends State<FicharScreen> {
       String? address;
       
       try {
+        LoggerService.info('Intentando obtener dirección para coordenadas: ${position.latitude}, ${position.longitude}');
         List<Placemark> placemarks = await placemarkFromCoordinates(
           position.latitude,
           position.longitude,
         );
+        
         if (placemarks.isNotEmpty) {
           Placemark place = placemarks[0];
-          address = '${place.street}, ${place.locality}, ${place.postalCode}, ${place.country}'
-              .replaceAll(RegExp(r'null,?\s*'), '')
-              .replaceAll(RegExp(r',\s*,'), ',')
-              .replaceAll(RegExp(r',\s*$'), '');
+          List<String> addressParts = [];
+          
+          if (place.street?.isNotEmpty ?? false) addressParts.add(place.street!);
+          if (place.locality?.isNotEmpty ?? false) addressParts.add(place.locality!);
+          if (place.postalCode?.isNotEmpty ?? false) addressParts.add(place.postalCode!);
+          if (place.country?.isNotEmpty ?? false) addressParts.add(place.country!);
+          
+          if (addressParts.isNotEmpty) {
+            address = addressParts.join(', ');
+            LoggerService.info('Dirección obtenida: $address');
+          } else {
+            address = 'Lat: ${position.latitude.toStringAsFixed(6)}, Long: ${position.longitude.toStringAsFixed(6)}';
+            LoggerService.info('No se pudo obtener dirección legible, usando coordenadas');
+          }
+        } else {
+          address = 'Lat: ${position.latitude.toStringAsFixed(6)}, Long: ${position.longitude.toStringAsFixed(6)}';
+          LoggerService.info('No se encontraron placemarks, usando coordenadas');
         }
       } catch (e) {
-        print('Error al obtener dirección: $e');
+        LoggerService.error('Error al obtener dirección: $e');
+        address = 'Lat: ${position.latitude.toStringAsFixed(6)}, Long: ${position.longitude.toStringAsFixed(6)}';
       }
 
       setState(() {
@@ -49,44 +66,11 @@ class _FicharScreenState extends State<FicharScreen> {
         _isLoading = false;
       });
     } catch (e) {
+      LoggerService.error('Error al obtener ubicación: $e');
       setState(() {
         _locationError = 'Error al obtener ubicación: $e';
         _isLoading = false;
       });
-    }
-  }
-
-  Future<void> _registrarFichaje(String tipo) async {
-    setState(() => _isLoading = true);
-    
-    final jornadaService = JornadaService();
-    try {
-      await jornadaService.registrarFichaje(tipo);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Has registrado: $tipo'),
-            duration: const Duration(seconds: 2),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-        await _updateLocation();
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al registrar: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
     }
   }
 
@@ -96,21 +80,31 @@ class _FicharScreenState extends State<FicharScreen> {
     _updateLocation();
   }
 
-  Widget _buildLocationInfo() {
+  Widget _buildLocationWidget() {
     if (_isLoading) {
       return const Padding(
         padding: EdgeInsets.all(16.0),
-        child: Center(child: CircularProgressIndicator()),
+        child: Center(
+          child: CircularProgressIndicator(),
+        ),
       );
     }
 
     if (_locationError != null) {
       return Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Text(
-          _locationError!,
-          style: const TextStyle(color: Colors.red),
-          textAlign: TextAlign.center,
+        child: Column(
+          children: [
+            Text(
+              _locationError!,
+              style: const TextStyle(color: Colors.red),
+            ),
+            TextButton.icon(
+              onPressed: _updateLocation,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Reintentar'),
+            ),
+          ],
         ),
       );
     }
@@ -125,17 +119,11 @@ class _FicharScreenState extends State<FicharScreen> {
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            if (_currentAddress != null)
-              Text(
-                _currentAddress!,
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 14),
-              )
-            else
-              const Text(
-                'Obteniendo dirección...',
-                style: TextStyle(fontStyle: FontStyle.italic),
-              ),
+            Text(
+              _currentAddress ?? 'Obteniendo dirección...',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 14),
+            ),
             TextButton.icon(
               onPressed: _updateLocation,
               icon: const Icon(Icons.refresh),
@@ -161,49 +149,53 @@ class _FicharScreenState extends State<FicharScreen> {
       appBar: AppBar(
         title: const Text('Fichar'),
       ),
-      body: Center(
+      body: SingleChildScrollView(
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            _buildLocationInfo(),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 20),
-                minimumSize: const Size(200, 60),
-              ),
-              onPressed: _isLoading ? null : () => _registrarFichaje('ENTRADA'),
-              child: const Text(
-                'Entrada',
-                style: TextStyle(fontSize: 20, color: Colors.white),
-              ),
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange,
-                padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 20),
-                minimumSize: const Size(200, 60),
-              ),
-              onPressed: _isLoading ? null : () => _registrarFichaje('PAUSA'),
-              child: const Text(
-                'Pausa',
-                style: TextStyle(fontSize: 20, color: Colors.white),
-              ),
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 20),
-                minimumSize: const Size(200, 60),
-              ),
-              onPressed: _isLoading ? null : () => _registrarFichaje('SALIDA'),
-              child: const Text(
-                'Salida',
-                style: TextStyle(fontSize: 20, color: Colors.white),
-              ),
+            _buildLocationWidget(),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                ElevatedButton(
+                  onPressed: () async {
+                    try {
+                      await JornadaService().registrarFichaje('Entrada');
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Entrada registrada correctamente')),
+                        );
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Error al registrar entrada: $e')),
+                        );
+                      }
+                    }
+                  },
+                  child: const Text('Entrada'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    try {
+                      await JornadaService().registrarFichaje('Salida');
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Salida registrada correctamente')),
+                        );
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Error al registrar salida: $e')),
+                        );
+                      }
+                    }
+                  },
+                  child: const Text('Salida'),
+                ),
+              ],
             ),
           ],
         ),
