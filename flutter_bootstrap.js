@@ -29,7 +29,7 @@ window.addEventListener('load', function() {
 
                 // Configurar el service worker si está disponible
                 if ('serviceWorker' in navigator) {
-                  navigator.serviceWorker.register('flutter_service_worker.js?v=2519073466');
+                  navigator.serviceWorker.register('flutter_service_worker.js?v=3246461257');
                 }
 
                 resolve();

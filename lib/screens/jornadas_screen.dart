@@ -9,6 +9,21 @@ import '../models/registro_jornada.dart';
 import '../services/jornada_service.dart';
 import '../services/auth_service.dart';
 import '../services/logger_service.dart';
+import '../utils/platform_utils.dart';
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:html' as html;
+import 'dart:convert';
+
+const bool isWeb = bool.fromEnvironment('dart.library.js_util');
+
+Future<void> downloadExcelWeb(List<int> bytes, String fileName) async {
+  final content = base64Encode(bytes);
+  final anchor = html.AnchorElement(
+    href: 'data:text/csv;charset=utf-8;base64,$content'
+  )
+    ..setAttribute('download', fileName)
+    ..click();
+}
 
 class JornadasScreen extends StatefulWidget {
   const JornadasScreen({super.key});
@@ -368,174 +383,80 @@ class _JornadasScreenState extends State<JornadasScreen> {
 
       final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
       final now = DateTime.now();
-      final fileName = 'registros_${DateFormat('yyyyMMdd_HHmm').format(now)}.xlsx';
+      final fileName = 'registros_${DateFormat('yyyyMMdd_HHmm').format(now)}.csv';
       
-      // Crear archivo Excel
-      var excel = Excel.createExcel();
-      var sheet = excel['Registros'];
+      // Crear contenido CSV
+      final StringBuffer csvContent = StringBuffer();
       
-      // Definir estilos
-      var headerStyle = CellStyle(
-        bold: true,
-        horizontalAlign: HorizontalAlign.Center,
-      );
+      // Encabezados
+      csvContent.writeln('Tipo,Fecha,Nombre,Email,Ubicación');
       
-      var dataStyle = CellStyle(
-        horizontalAlign: HorizontalAlign.Left,
-      );
-
-      // Agregar información de filtros aplicados
-      var rowIndex = 0;
-      
-      if (_filterTipo != 'TODOS' || _filterNombre.isNotEmpty || _filterEmail.isNotEmpty || 
-          _filterUbicacion.isNotEmpty || _filterFechaInicio != null) {
-        sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex))
-          ..value = TextCellValue('Filtros Aplicados:')
-          ..cellStyle = headerStyle;
-        rowIndex++;
-
-        if (_filterTipo != 'TODOS') {
-          sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex))
-            ..value = TextCellValue('Tipo: $_filterTipo')
-            ..cellStyle = dataStyle;
-          rowIndex++;
-        }
-
-        if (_filterNombre.isNotEmpty) {
-          sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex))
-            ..value = TextCellValue('Nombre: $_filterNombre')
-            ..cellStyle = dataStyle;
-          rowIndex++;
-        }
-
-        if (_filterEmail.isNotEmpty) {
-          sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex))
-            ..value = TextCellValue('Email: $_filterEmail')
-            ..cellStyle = dataStyle;
-          rowIndex++;
-        }
-
-        if (_filterUbicacion.isNotEmpty) {
-          sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex))
-            ..value = TextCellValue('Ubicación: $_filterUbicacion')
-            ..cellStyle = dataStyle;
-          rowIndex++;
-        }
-
-        if (_filterFechaInicio != null && _filterFechaFin != null) {
-          sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex))
-            ..value = TextCellValue('Rango de fechas: ${DateFormat('dd/MM/yyyy').format(_filterFechaInicio!)} - ${DateFormat('dd/MM/yyyy').format(_filterFechaFin!)}')
-            ..cellStyle = dataStyle;
-          rowIndex++;
-        }
-
-        rowIndex++; // Espacio en blanco
-      }
-
-      // Agregar encabezados
-      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex))
-        ..value = TextCellValue('Tipo')
-        ..cellStyle = headerStyle;
-      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex))
-        ..value = TextCellValue('Fecha/Hora')
-        ..cellStyle = headerStyle;
-      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: rowIndex))
-        ..value = TextCellValue('Nombre')
-        ..cellStyle = headerStyle;
-      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: rowIndex))
-        ..value = TextCellValue('Email')
-        ..cellStyle = headerStyle;
-      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: rowIndex))
-        ..value = TextCellValue('Ubicación')
-        ..cellStyle = headerStyle;
-      
-      rowIndex++;
-
-      // Agregar datos
+      // Datos
       for (var registro in registros) {
-        sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex))
-          ..value = TextCellValue(registro.tipo)
-          ..cellStyle = dataStyle;
-        sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex))
-          ..value = TextCellValue(dateFormat.format(registro.fecha))
-          ..cellStyle = dataStyle;
-        sheet.cell(CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: rowIndex))
-          ..value = TextCellValue(registro.userName)
-          ..cellStyle = dataStyle;
-        sheet.cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: rowIndex))
-          ..value = TextCellValue(registro.userEmail)
-          ..cellStyle = dataStyle;
-        sheet.cell(CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: rowIndex))
-          ..value = TextCellValue(registro.locationAddress ?? 'Sin ubicación')
-          ..cellStyle = dataStyle;
+        final List<String> row = [
+          registro.tipo,
+          dateFormat.format(registro.fecha),
+          registro.userName,
+          registro.userEmail,
+          registro.locationAddress ?? 'Sin ubicación'
+        ].map((field) => '"${field.replaceAll('"', '""')}"').toList();
         
-        rowIndex++;
+        csvContent.writeln(row.join(','));
       }
-
-      // Ajustar ancho de columnas
-      sheet.setColumnWidth(0, 15.0); // Tipo
-      sheet.setColumnWidth(1, 25.0); // Fecha
-      sheet.setColumnWidth(2, 20.0); // Nombre
-      sheet.setColumnWidth(3, 30.0); // Email
-      sheet.setColumnWidth(4, 40.0); // Ubicación
-
-      // Intentar obtener el directorio de almacenamiento
-      Directory? directory;
-      try {
-        directory = await getExternalStorageDirectory();
-      } catch (e) {
-        directory = await getTemporaryDirectory();
-      }
-
-      if (directory == null) {
-        throw Exception('No se pudo acceder al almacenamiento');
-      }
-
-      final filePath = '${directory.path}/$fileName';
-      final file = File(filePath);
-      await file.writeAsBytes(excel.encode()!);
 
       // Cerrar diálogo de progreso
       if (context.mounted) {
         Navigator.of(context).pop();
       }
 
-      // Compartir archivo
-      if (context.mounted) {
-        try {
-          final result = await Share.shareXFiles(
-            [XFile(filePath)],
-            subject: 'Registros de Jornada',
-          );
+      // Convertir a bytes
+      final bytes = csvContent.toString().codeUnits;
 
-          if (result.status == ShareResultStatus.success) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Archivo Excel exportado correctamente'),
-                backgroundColor: Colors.green,
-              ),
+      if (isWeb) {
+        // En la web, usar el método de descarga web
+        await downloadExcelWeb(bytes, fileName);
+      } else {
+        // En móvil, usar el método de compartir
+        final tempDir = await getTemporaryDirectory();
+        final file = File('${tempDir.path}/$fileName');
+        await file.writeAsString(csvContent.toString());
+
+        if (context.mounted) {
+          try {
+            final result = await Share.shareXFiles(
+              [XFile(file.path)],
+              subject: 'Registros de Jornada',
             );
-          }
-        } catch (shareError) {
-          // Mostrar diálogo con la ubicación del archivo
-          if (context.mounted) {
-            showDialog(
-              context: context,
-              builder: (BuildContext context) {
-                return AlertDialog(
-                  title: const Text('Archivo Generado'),
-                  content: SingleChildScrollView(
-                    child: Text('El archivo se ha guardado en:\n$filePath'),
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: const Text('Aceptar'),
+
+            if (result.status == ShareResultStatus.success) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Archivo exportado correctamente'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            }
+          } catch (shareError) {
+            // Mostrar diálogo con la ubicación del archivo
+            if (context.mounted) {
+              showDialog(
+                context: context,
+                builder: (BuildContext context) {
+                  return AlertDialog(
+                    title: const Text('Archivo Generado'),
+                    content: SingleChildScrollView(
+                      child: Text('El archivo se ha guardado en:\n${file.path}'),
                     ),
-                  ],
-                );
-              },
-            );
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('Aceptar'),
+                      ),
+                    ],
+                  );
+                },
+              );
+            }
           }
         }
       }
@@ -553,7 +474,7 @@ class _JornadasScreenState extends State<JornadasScreen> {
             return AlertDialog(
               title: const Text('Error al exportar'),
               content: SingleChildScrollView(
-                child: Text('No se pudo exportar el archivo Excel: $e'),
+                child: Text('No se pudo exportar el archivo: $e'),
               ),
               actions: [
                 TextButton(

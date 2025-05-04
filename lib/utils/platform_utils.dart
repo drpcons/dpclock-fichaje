@@ -1,13 +1,9 @@
-import 'package:flutter/foundation.dart';
-import 'platform_utils_web.dart' if (dart.library.io) 'platform_utils_mobile.dart';
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:html' as html;
 
 String getOrigin() {
-  if (kIsWeb) {
-    try {
-      return getPlatformOrigin();
-    } catch (e) {
-      return 'https://drpcons.github.io';
-    }
+  if (const bool.fromEnvironment('dart.library.js_util')) {
+    return html.window.location.origin ?? 'https://drpcons.github.io';
   }
   return 'app://fichaje';
 } 

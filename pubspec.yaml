@@ -60,6 +60,9 @@ dependencies:
   # Added from the code block
   http: ^1.1.2
 
+  # Added from the code block
+  html: ^0.15.4
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
