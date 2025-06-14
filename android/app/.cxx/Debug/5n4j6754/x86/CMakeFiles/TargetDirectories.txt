@@ -1,0 +1,2 @@
+C:/Users/DAVID/StudioProjects/drpclock/android/app/.cxx/Debug/5n4j6754/x86/CMakeFiles/edit_cache.dir
+C:/Users/DAVID/StudioProjects/drpclock/android/app/.cxx/Debug/5n4j6754/x86/CMakeFiles/rebuild_cache.dir
