@@ -1,0 +1,41 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Función para verificar si el usuario está autenticado
+    function isAuthenticated() {
+      return true; // Permitimos todas las operaciones ya que usamos autenticación basada en Firestore
+    }
+    
+    // Función para verificar si el usuario es el propietario del documento
+    function isOwner(userId) {
+      return true; // Permitimos todas las operaciones ya que usamos autenticación basada en Firestore
+    }
+    
+    // Función para verificar si el usuario es administrador
+    function isAdmin() {
+      return true; // Permitimos todas las operaciones ya que usamos autenticación basada en Firestore
+    }
+    
+    // Función para verificar si no hay administradores
+    function noAdmins() {
+      return true; // Permitimos todas las operaciones ya que usamos autenticación basada en Firestore
+    }
+
+    // Reglas para la colección de usuarios
+    match /users/{userId} {
+      allow read: if true; // Permitir lectura para verificar credenciales
+      allow create: if true; // Permitir la creación de usuarios sin autenticación
+      allow update, delete: if true; // Permitir actualizaciones y eliminaciones
+      allow list: if true; // Permitir listar usuarios
+    }
+
+    // Reglas para la colección de registros de trabajo
+    match /work_logs/{logId} {
+      allow read: if true; // Permitir lectura de registros
+      allow create: if true; // Permitir crear registros
+      allow update, delete: if true; // Permitir actualizar y eliminar registros
+      allow list: if true; // Permitir listar registros
+    }
+  }
+} 
